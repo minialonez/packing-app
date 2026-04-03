@@ -150,7 +150,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-500 border-b border-slate-800">
 <th class="text-left pb-3 pr-3">วันที่</th><th class="text-left pb-3 pr-3">เวลา</th><th class="text-left pb-3 pr-3">ผู้แพค</th>
 <th class="text-left pb-3 pr-3">ระยะเวลา</th><th class="text-left pb-3 pr-3">คำสั่งซื้อ</th><th class="text-left pb-3 pr-3">เลขพัสดุ</th>
-<th class="text-left pb-3 pr-3">สินค้า</th><th class="text-left pb-3">วิดีโอ</th>
+<th class="text-left pb-3">วิดีโอ</th>
 </tr></thead><tbody id="logs-tbody" class="text-slate-300"></tbody></table></div>
 </div></div></div>
 
@@ -169,10 +169,15 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="flex items-center gap-3 mt-4"><button onclick="doAddUser()" class="bg-blue-600 hover:bg-blue-500 text-sm font-medium px-5 py-2 rounded-xl">เพิ่มผู้ใช้</button><div id="add-result" class="text-xs hidden"></div></div>
 </div>
 <div class="grad-card rounded-2xl p-5"><h3 class="font-semibold text-sm mb-4">👥 รายชื่อผู้ใช้</h3><div id="user-list" class="space-y-2 text-sm text-slate-400">กำลังโหลด...</div></div>
-<div class="grad-card rounded-2xl p-5"><h3 class="font-semibold text-sm mb-4">🔧 ระบบ</h3>
-<div class="flex flex-wrap gap-3">
-<button onclick="doSetupTriggers()" class="bg-purple-700 hover:bg-purple-600 text-sm px-4 py-2 rounded-xl">⏰ Auto-Delete 45 วัน</button>
-<button onclick="doManualCleanup()" class="bg-orange-700 hover:bg-orange-600 text-sm px-4 py-2 rounded-xl">🗑️ ลบเก่าเดี๋ยวนี้</button>
+<div class="grad-card rounded-2xl p-5"><h3 class="font-semibold text-sm mb-4">🔧 ระบบ — ลบวิดีโอเก่า</h3>
+<div class="flex items-center gap-3 flex-wrap">
+<div class="flex items-center gap-2">
+<label class="text-xs text-slate-400">ลบไฟล์เก่ากว่า</label>
+<input id="del-days" type="number" value="45" min="1" max="365" class="w-20 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white text-center focus:outline-none focus:border-blue-500">
+<span class="text-xs text-slate-400">วัน</span>
+</div>
+<button onclick="doSetupTriggers()" class="bg-purple-700 hover:bg-purple-600 text-sm px-4 py-2 rounded-xl">⏰ ตั้ง Auto-Delete รายวัน</button>
+<button onclick="doManualCleanup()" class="bg-orange-700 hover:bg-orange-600 text-sm px-4 py-2 rounded-xl">🗑️ ลบเดี๋ยวนี้</button>
 </div><div id="sys-result" class="hidden mt-3 text-xs text-slate-300 bg-slate-800 rounded-xl p-3"></div>
 </div></div></div>
 
@@ -500,11 +505,11 @@ function renderStats(d) {
   el('rankings').innerHTML=rh;
   // Table
   var rows=logs.slice().reverse().slice(0,50),th='';
-  if(!rows.length)th='<tr><td colspan="8" class="py-8 text-center text-slate-500">ไม่มีข้อมูล</td></tr>';
+  if(!rows.length)th='<tr><td colspan="7" class="py-8 text-center text-slate-500">ไม่มีข้อมูล</td></tr>';
   else rows.forEach(function(l){
     var vl=l.fileURL?'<a href="'+l.fileURL+'" target="_blank" class="text-blue-400 hover:underline">▶ ดู</a>':'−';
     if(l.fileId)vl+=' <a href="https://drive.google.com/uc?export=download&id='+l.fileId+'" target="_blank" class="text-emerald-400 hover:underline">⬇</a>';
-    th+='<tr class="border-b border-slate-800"><td class="py-2 pr-3 text-slate-400">'+(l.date||'-')+'</td><td class="py-2 pr-3 font-mono">'+(l.startTime||'-')+'</td><td class="py-2 pr-3">'+(l.packer||'-')+'</td><td class="py-2 pr-3 font-mono text-emerald-400">'+fmtDur(l.durationSec)+'</td><td class="py-2 pr-3 text-yellow-400 font-mono">'+(l.orderNumber||'-')+'</td><td class="py-2 pr-3 text-blue-400 font-mono">'+(l.trackingNumber||'-')+'</td><td class="py-2 pr-3 text-slate-400">'+((l.products||'-').substring(0,40))+'</td><td class="py-2 whitespace-nowrap">'+vl+'</td></tr>';
+    th+='<tr class="border-b border-slate-800"><td class="py-2 pr-3 text-slate-400">'+(l.date||'-')+'</td><td class="py-2 pr-3 font-mono">'+(l.startTime||'-')+'</td><td class="py-2 pr-3">'+(l.packer||'-')+'</td><td class="py-2 pr-3 font-mono text-emerald-400">'+fmtDur(l.durationSec)+'</td><td class="py-2 pr-3 text-yellow-400 font-mono">'+(l.orderNumber||'-')+'</td><td class="py-2 pr-3 text-blue-400 font-mono">'+(l.trackingNumber||'-')+'</td><td class="py-2 whitespace-nowrap">'+vl+'</td></tr>';
   });
   el('logs-tbody').innerHTML=th;
 }
@@ -537,9 +542,19 @@ function doAddUser(){var u=v('a-user'),p=v('a-pass'),n=v('a-name'),r=v('a-role')
     else showInline('add-result','❌ '+res.message,'err');});}
 
 function toggleUser(u,a){gRun('updateUserStatus',{username:u,active:a}).then(function(){loadUsers();});}
-function doSetupTriggers(){gRun('setupTriggers',{}).then(function(r){el('sys-result').classList.remove('hidden');el('sys-result').textContent='✅ ตั้งค่าสำเร็จ';});}
-function doManualCleanup(){if(!confirm('ลบโฟลเดอร์เก่ากว่า 45 วัน?'))return;showOverlay('กำลังลบ...');
-  gRun('cleanOldFolders',{}).then(function(r){hideOverlay();el('sys-result').classList.remove('hidden');el('sys-result').textContent='✅ ลบ '+r.deleted.length+' โฟลเดอร์';}).catch(function(e){hideOverlay();toast('❌ '+e.message);});}
+function doSetupTriggers(){
+  var days=parseInt(el('del-days').value)||45;
+  gRun('setupTriggers',{days:days}).then(function(r){
+    el('sys-result').classList.remove('hidden');
+    el('sys-result').textContent='✅ ตั้งค่าสำเร็จ — ลบอัตโนมัติไฟล์เก่ากว่า '+days+' วัน ทุกคืน 02:00 น.';
+  });
+}
+function doManualCleanup(){
+  var days=parseInt(el('del-days').value)||45;
+  if(!confirm('ลบโฟลเดอร์เก่ากว่า '+days+' วัน เดี๋ยวนี้?'))return;
+  showOverlay('กำลังลบ...');
+  gRun('cleanOldFolders',{days:days}).then(function(r){hideOverlay();el('sys-result').classList.remove('hidden');el('sys-result').textContent='✅ ลบ '+r.deleted.length+' โฟลเดอร์';}).catch(function(e){hideOverlay();toast('❌ '+e.message);});
+}
 
 // ═══════════════════════════════════════
 // UI HELPERS
