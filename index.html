@@ -287,16 +287,12 @@ function doLogout() {
 function startCamera() {
   el('cam-status-text').textContent='⏳ กำลังเปิดกล้อง...';
   el('cam-status-text').className='text-yellow-400';
-  navigator.mediaDevices.getUserMedia({video:true,audio:true})
+  navigator.mediaDevices.getUserMedia({video:true,audio:false})
   .then(function(stream){onCamReady(stream);})
-  .catch(function(e1){
-    navigator.mediaDevices.getUserMedia({video:true,audio:false})
-    .then(function(stream){onCamReady(stream);toast('⚠️ ไม่มีไมค์');})
-    .catch(function(e2){
-      el('cam-status-text').textContent='🔴 '+e2.name;
-      el('cam-status-text').className='text-red-400';
-      toast('❌ เปิดกล้องไม่ได้: '+e2.message,5000);
-    });
+  .catch(function(err){
+    el('cam-status-text').textContent='🔴 '+err.name;
+    el('cam-status-text').className='text-red-400';
+    toast('❌ เปิดกล้องไม่ได้: '+err.message,5000);
   });
 }
 
@@ -304,8 +300,7 @@ function onCamReady(stream) {
   S.stream=stream;
   var vid=el('videoEl'); vid.srcObject=stream; vid.play().catch(function(){});
   el('cam-placeholder').style.display='none';
-  var hasAudio=stream.getAudioTracks().length>0;
-  el('cam-status-text').textContent='🟢 กล้องพร้อม'+(hasAudio?' + ไมค์':'');
+  el('cam-status-text').textContent='🟢 กล้องพร้อม';
   el('cam-status-text').className='text-emerald-400';
 }
 
@@ -351,6 +346,12 @@ function handleBarcode(code) {
     el('bc-order').textContent=code;el('bc-tracking').textContent='รอยิง...';
     toast('📋 คำสั่งซื้อ: '+code); startRecording();
   } else {
+    // ตรวจสอบห้ามซ้ำกับเลขคำสั่งซื้อ
+    if(code === S.orderNumber){
+      toast('⚠️ เลขพัสดุซ้ำกับคำสั่งซื้อ! ยิงใหม่', 4000);
+      var inp=el('bc-input');if(inp){inp.value='';inp.focus();}
+      return;
+    }
     S.trackingNumber=code;
     el('bc-tracking').textContent=code;
     toast('📦 เลขพัสดุ: '+code); stopRecording();
@@ -379,7 +380,7 @@ function startRecording() {
   }
   if(S.recording)return;
   var mime='';
-  ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'].forEach(function(m){if(!mime&&MediaRecorder.isTypeSupported(m))mime=m;});
+  ['video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].forEach(function(m){if(!mime&&MediaRecorder.isTypeSupported(m))mime=m;});
   if(!mime){toast('❌ Browser ไม่รองรับ');return;}
   S.chunks=[];S.t0=new Date();
   try{S.recorder=new MediaRecorder(S.stream,{mimeType:mime,videoBitsPerSecond:2500000});}catch(e){toast('❌ '+e.message);return;}
@@ -431,14 +432,14 @@ function resumableUp(blob,fn,info,dur,end,prod){
   setUpload(true,15,'เริ่มอัปโหลด...');
   return fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id',{
     method:'POST',headers:{'Authorization':'Bearer '+info.token,'Content-Type':'application/json',
-      'X-Upload-Content-Type':blob.type||'video/webm','X-Upload-Content-Length':String(blob.size)},
+      'X-Upload-Content-Type':blob.type||'video/mp4','X-Upload-Content-Length':String(blob.size)},
     body:JSON.stringify({name:fn,parents:[info.folderId]})
   }).then(function(r){if(!r.ok)throw new Error('Init HTTP '+r.status);
     var url=r.headers.get('Location');if(!url)throw new Error('No upload URL');
     var CHUNK=5*1024*1024,offset=0;
     function next(){
       var e=Math.min(offset+CHUNK,blob.size),chunk=blob.slice(offset,e);
-      return fetch(url,{method:'PUT',headers:{'Content-Range':'bytes '+offset+'-'+(e-1)+'/'+blob.size,'Content-Type':blob.type||'video/webm'},body:chunk})
+      return fetch(url,{method:'PUT',headers:{'Content-Range':'bytes '+offset+'-'+(e-1)+'/'+blob.size,'Content-Type':blob.type||'video/mp4'},body:chunk})
       .then(function(r2){offset=e;var pct=15+Math.round(offset/blob.size*70);setUpload(true,pct,'อัปโหลด '+pct+'%');
         if(r2.status===200||r2.status===201)return r2.json();
         if(r2.status===308){var rng=r2.headers.get('Range');if(rng)offset=parseInt(rng.split('-')[1],10)+1;return next();}
