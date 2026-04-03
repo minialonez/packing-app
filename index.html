@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบบันทึกวิดีโอการแพคสินค้า</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{background:#0f172a;font-family:'Segoe UI',sans-serif}
+.screen{display:none}.screen.active{display:block}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.rec-blink{animation:blink 1s infinite}
+.period-btn{padding:4px 14px;border-radius:8px;font-size:13px;cursor:pointer;transition:all .2s;background:#1e293b;color:#94a3b8;border:1px solid #334155}
+.period-btn.active{background:#2563eb;color:#fff;border-color:#2563eb}
+tbody tr:hover{background:rgba(255,255,255,.03)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{animation:spin .8s linear infinite;display:inline-block}
+.grad-card{background:linear-gradient(135deg,#1e293b,#0f172a);border:1px solid #334155}
+</style>
+</head>
+<body class="text-white min-h-screen">
+
+<!-- LOGIN -->
+<div id="screen-login" class="screen active min-h-screen flex items-center justify-center px-4">
+<div class="w-full max-w-sm">
+<div class="grad-card rounded-3xl p-8 shadow-2xl">
+<div class="text-center mb-8">
+<div class="text-7xl mb-3">📦</div>
+<h1 class="text-xl font-bold">ระบบบันทึกการแพคสินค้า</h1>
+<p class="text-slate-400 text-sm mt-1">กรุณาเข้าสู่ระบบ</p>
+</div>
+<div id="login-err" class="hidden mb-4 bg-red-950/60 border border-red-700/50 text-red-300 px-4 py-3 rounded-xl text-sm"></div>
+<div class="space-y-4">
+<div>
+<label class="text-xs text-slate-400 uppercase tracking-wider">ชื่อผู้ใช้</label>
+<input id="inp-user" type="text" placeholder="username" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500" onkeydown="if(event.key==='Enter')document.getElementById('inp-pass').focus()">
+</div>
+<div>
+<label class="text-xs text-slate-400 uppercase tracking-wider">รหัสผ่าน</label>
+<input id="inp-pass" type="password" placeholder="••••••••" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500" onkeydown="if(event.key==='Enter')doLogin()">
+</div>
+<button onclick="doLogin()" class="w-full bg-blue-600 hover:bg-blue-500 font-semibold py-3 rounded-xl text-sm mt-2">เข้าสู่ระบบ</button>
+</div>
+<p class="text-slate-600 text-xs text-center mt-6">Default: admin / admin123</p>
+</div></div></div>
+
+<!-- RECORD -->
+<div id="screen-record" class="screen min-h-screen flex flex-col">
+<nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center justify-between">
+<div class="flex items-center gap-3"><span class="text-2xl">📦</span><div><div class="font-bold text-sm">บันทึกการแพค</div><div id="nav-packer" class="text-slate-400 text-xs">-</div></div></div>
+<div class="flex items-center gap-1">
+<button onclick="showScreen('dashboard')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📊 รายงาน</button>
+<button id="admin-nav-btn" onclick="showScreen('admin')" class="hidden text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">⚙️ จัดการ</button>
+<button onclick="doLogout()" class="text-slate-400 hover:text-red-400 hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">ออก</button>
+</div></nav>
+
+<div class="flex-1 p-4 grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-5xl mx-auto w-full">
+<!-- LEFT: Video -->
+<div class="space-y-3">
+<div class="relative bg-slate-950 rounded-2xl overflow-hidden border border-slate-800" style="min-height:280px">
+<video id="videoEl" autoplay muted playsinline class="w-full h-full object-cover" style="min-height:280px"></video>
+<div id="cam-status" class="absolute top-3 right-3 bg-black/70 backdrop-blur px-3 py-1 rounded-full text-xs">
+<span id="cam-status-text" class="text-yellow-400">กดปุ่มเปิดกล้อง</span></div>
+<div id="rec-badge" class="hidden absolute top-3 left-3 flex items-center gap-1.5 bg-black/70 backdrop-blur px-3 py-1 rounded-full">
+<span class="w-2.5 h-2.5 bg-red-500 rounded-full rec-blink inline-block"></span>
+<span class="text-xs font-bold text-red-400">REC</span>
+<span id="rec-timer" class="text-xs font-mono text-white ml-1">00:00</span></div>
+<div id="cam-placeholder" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 p-4">
+<div class="text-5xl mb-4">🎥</div>
+<button onclick="startCamera()" class="bg-blue-600 hover:bg-blue-500 text-white text-base font-bold px-8 py-4 rounded-2xl mb-3 w-full max-w-xs">📹 กดเพื่อเปิดกล้อง</button>
+<p class="text-slate-500 text-xs">กล้องจะแสดง live preview ที่นี่</p>
+</div></div>
+
+<button id="ocr-btn" onclick="captureLabel()" class="hidden w-full bg-purple-700/80 hover:bg-purple-600 text-white text-sm py-2.5 rounded-xl font-medium">📸 อ่านใบปะหน้า (OCR)</button>
+<canvas id="ocr-canvas" class="hidden"></canvas>
+<div id="ocr-box" class="hidden grad-card rounded-2xl p-4">
+<span class="text-xs text-slate-400 uppercase tracking-wider">📄 ชื่อสินค้า (แก้ไขได้)</span>
+<textarea id="ocr-text" rows="3" placeholder="ชื่อสินค้า..." class="mt-2 w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-xl p-3 resize-none focus:outline-none focus:border-purple-500"></textarea>
+</div></div>
+
+<!-- RIGHT: Controls -->
+<div class="space-y-3">
+<div class="grad-card rounded-2xl p-6 text-center">
+<div id="status-icon" class="text-5xl mb-2">⏸️</div>
+<div id="status-text" class="font-bold text-base text-slate-200">พร้อมบันทึก</div>
+<div id="status-sub" class="text-slate-500 text-xs mt-1">ยิง Barcode คำสั่งซื้อเพื่อเริ่ม หรือกดปุ่มด้านล่าง</div>
+</div>
+
+<div class="grad-card rounded-2xl p-4 grid grid-cols-2 gap-3">
+<div class="flex items-center gap-2"><span class="text-lg">📋</span><div><div class="text-xs text-slate-500">คำสั่งซื้อ</div><div id="bc-order" class="font-mono text-yellow-400 text-sm truncate">-</div></div></div>
+<div class="flex items-center gap-2"><span class="text-lg">📦</span><div><div class="text-xs text-slate-500">เลขพัสดุ</div><div id="bc-tracking" class="font-mono text-blue-400 text-sm truncate">-</div></div></div>
+</div>
+
+<div class="grid grid-cols-2 gap-3">
+<button id="btn-start" onclick="startRecordingManual()" class="bg-emerald-700 hover:bg-emerald-600 font-bold py-4 rounded-2xl text-sm">▶ เริ่มอัด</button>
+<button id="btn-stop" onclick="stopRecordingManual()" disabled class="bg-slate-700 text-slate-500 font-bold py-4 rounded-2xl text-sm cursor-not-allowed">⏹ หยุด</button>
+</div>
+
+<div class="grad-card rounded-2xl p-4 grid grid-cols-2 gap-3 text-sm">
+<div><div class="text-slate-500 text-xs">เวลาเริ่ม</div><div id="info-start" class="font-mono mt-0.5">-</div></div>
+<div><div class="text-slate-500 text-xs">เวลาหยุด</div><div id="info-end" class="font-mono mt-0.5">-</div></div>
+<div><div class="text-slate-500 text-xs">ระยะเวลา</div><div id="info-dur" class="font-mono text-emerald-400 mt-0.5">-</div></div>
+<div><div class="text-slate-500 text-xs">ผู้แพค</div><div id="info-packer" class="text-blue-300 mt-0.5">-</div></div>
+</div>
+
+<div id="upload-box" class="hidden grad-card rounded-2xl p-4">
+<div class="text-xs text-slate-400 mb-3">☁️ กำลังบันทึกขึ้น Drive</div>
+<div class="bg-slate-700 rounded-full h-2 mb-2 overflow-hidden"><div id="upload-bar" class="bg-blue-500 h-2 rounded-full transition-all" style="width:0%"></div></div>
+<div id="upload-label" class="text-xs text-slate-400">เตรียมอัปโหลด...</div>
+</div>
+
+<div id="success-box" class="hidden rounded-2xl p-4 bg-emerald-950/60 border border-emerald-700/40">
+<div class="text-xs text-emerald-400 mb-2">✅ บันทึกสำเร็จ!</div>
+<div id="success-info" class="text-xs text-slate-300 leading-relaxed"></div>
+<a id="success-link" href="#" target="_blank" class="inline-block mt-2 text-blue-400 text-xs underline">▶ ดูวิดีโอ</a>
+</div>
+</div></div></div>
+
+<!-- DASHBOARD -->
+<div id="screen-dashboard" class="screen min-h-screen flex flex-col">
+<nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center justify-between">
+<div class="flex items-center gap-3"><button onclick="showScreen('record')" class="text-slate-400 hover:text-white text-sm">← กลับ</button><span class="font-bold text-sm">📊 รายงานสถิติ</span></div>
+<div class="flex gap-2">
+<button class="period-btn active" onclick="loadStats('today')" data-p="today">วันนี้</button>
+<button class="period-btn" onclick="loadStats('week')" data-p="week">7 วัน</button>
+<button class="period-btn" onclick="loadStats('month')" data-p="month">30 วัน</button>
+</div></nav>
+<div class="flex-1 overflow-y-auto p-4 max-w-6xl mx-auto w-full space-y-4">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+<div class="grad-card rounded-2xl p-5 text-center"><div class="text-3xl font-black text-blue-400" id="kpi-total">-</div><div class="text-slate-400 text-xs mt-1">ครั้งทั้งหมด</div></div>
+<div class="grad-card rounded-2xl p-5 text-center"><div class="text-3xl font-black text-emerald-400" id="kpi-packers">-</div><div class="text-slate-400 text-xs mt-1">ผู้แพค</div></div>
+<div class="grad-card rounded-2xl p-5 text-center"><div class="text-3xl font-black text-yellow-400" id="kpi-avg">-</div><div class="text-slate-400 text-xs mt-1">เฉลี่ย/ครั้ง</div></div>
+<div class="grad-card rounded-2xl p-5 text-center"><div class="text-3xl font-black text-purple-400" id="kpi-peak">-</div><div class="text-slate-400 text-xs mt-1">สูงสุด/วัน</div></div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div class="grad-card rounded-2xl p-5"><h3 class="font-semibold text-sm mb-4 text-slate-200">📅 การแพคต่อวัน</h3><canvas id="chart-date" height="180"></canvas></div>
+<div class="grad-card rounded-2xl p-5"><h3 class="font-semibold text-sm mb-4 text-slate-200">👥 สัดส่วน</h3><canvas id="chart-pie" height="180"></canvas></div>
+</div>
+<div class="grad-card rounded-2xl p-5"><h3 class="font-semibold text-sm mb-4 text-slate-200">🏆 อันดับผู้แพค</h3><div id="rankings" class="space-y-3"></div></div>
+<div class="grad-card rounded-2xl p-5"><h3 class="font-semibold text-sm mb-4 text-slate-200">📋 ประวัติล่าสุด</h3>
+<div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-500 border-b border-slate-800">
+<th class="text-left pb-3 pr-3">วันที่</th><th class="text-left pb-3 pr-3">เวลา</th><th class="text-left pb-3 pr-3">ผู้แพค</th>
+<th class="text-left pb-3 pr-3">ระยะเวลา</th><th class="text-left pb-3 pr-3">คำสั่งซื้อ</th><th class="text-left pb-3 pr-3">เลขพัสดุ</th>
+<th class="text-left pb-3 pr-3">สินค้า</th><th class="text-left pb-3">วิดีโอ</th>
+</tr></thead><tbody id="logs-tbody" class="text-slate-300"></tbody></table></div>
+</div></div></div>
+
+<!-- ADMIN -->
+<div id="screen-admin" class="screen min-h-screen flex flex-col">
+<nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center gap-4">
+<button onclick="showScreen('record')" class="text-slate-400 hover:text-white text-sm">← กลับ</button><span class="font-bold text-sm">⚙️ จัดการระบบ</span></nav>
+<div class="flex-1 overflow-y-auto p-4 max-w-4xl mx-auto w-full space-y-4">
+<div class="grad-card rounded-2xl p-5"><h3 class="font-semibold text-sm mb-4">➕ เพิ่มผู้ใช้</h3>
+<div class="grid grid-cols-2 gap-3">
+<div><label class="text-xs text-slate-400">Username</label><input id="a-user" type="text" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none"></div>
+<div><label class="text-xs text-slate-400">Password</label><input id="a-pass" type="password" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none"></div>
+<div><label class="text-xs text-slate-400">ชื่อ-นามสกุล</label><input id="a-name" type="text" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none"></div>
+<div><label class="text-xs text-slate-400">บทบาท</label><select id="a-role" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white"><option value="packer">พนักงาน</option><option value="admin">ผู้ดูแล</option></select></div>
+</div>
+<div class="flex items-center gap-3 mt-4"><button onclick="doAddUser()" class="bg-blue-600 hover:bg-blue-500 text-sm font-medium px-5 py-2 rounded-xl">เพิ่มผู้ใช้</button><div id="add-result" class="text-xs hidden"></div></div>
+</div>
+<div class="grad-card rounded-2xl p-5"><h3 class="font-semibold text-sm mb-4">👥 รายชื่อผู้ใช้</h3><div id="user-list" class="space-y-2 text-sm text-slate-400">กำลังโหลด...</div></div>
+<div class="grad-card rounded-2xl p-5"><h3 class="font-semibold text-sm mb-4">🔧 ระบบ</h3>
+<div class="flex flex-wrap gap-3">
+<button onclick="doSetupTriggers()" class="bg-purple-700 hover:bg-purple-600 text-sm px-4 py-2 rounded-xl">⏰ Auto-Delete 45 วัน</button>
+<button onclick="doManualCleanup()" class="bg-orange-700 hover:bg-orange-600 text-sm px-4 py-2 rounded-xl">🗑️ ลบเก่าเดี๋ยวนี้</button>
+</div><div id="sys-result" class="hidden mt-3 text-xs text-slate-300 bg-slate-800 rounded-xl p-3"></div>
+</div></div></div>
+
+<!-- OVERLAY -->
+<div id="overlay" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+<div class="grad-card rounded-2xl p-8 text-center shadow-2xl min-w-48"><div class="text-4xl spin mb-3">⚙️</div><div id="overlay-text" class="text-slate-300 text-sm">กำลังโหลด...</div></div></div>
+<div id="toast-container" class="fixed bottom-6 left-1/2 -translate-x-1/2 flex flex-col gap-2 z-50 pointer-events-none"></div>
+
+<script>
+// ═══════════════════════════════════════
+// CONFIG — ใส่ GAS Web App URL ตรงนี้
+// ═══════════════════════════════════════
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbwnG9PU5h8_Z6tTkIBswdm10evy6i03mgCgZ9YVijrQ_U3_t1-FTwEOKCZKCFEk9gqZqg/exec';
+
+// ═══════════════════════════════════════
+// API — เรียก GAS ผ่าน fetch GET (ไม่มี CORS issue)
+// ═══════════════════════════════════════
+function gRun(action, params) {
+  var url = GAS_URL + '?action=' + encodeURIComponent(action);
+  if (params) {
+    Object.keys(params).forEach(function(k) {
+      if (params[k] !== undefined && params[k] !== null)
+        url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(String(params[k]));
+    });
+  }
+  return fetch(url)
+    .then(function(r) { return r.text(); })
+    .then(function(t) {
+      try { return JSON.parse(t); }
+      catch(e) { throw new Error('Invalid response from server'); }
+    });
+}
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+var S = { user:null, recording:false, recorder:null, chunks:[], stream:null, t0:null, timerIv:null,
+  orderNumber:null, trackingNumber:null, charts:{}, ocrBusy:false, uploading:false };
+
+// ═══════════════════════════════════════
+// SCREEN ROUTER
+// ═══════════════════════════════════════
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
+  var t = document.getElementById('screen-'+name);
+  if (t) t.classList.add('active');
+  if (name==='dashboard') loadStats('today');
+  if (name==='admin') loadUsers();
+}
+
+// ═══════════════════════════════════════
+// LOGIN / LOGOUT
+// ═══════════════════════════════════════
+function doLogin() {
+  var u=v('inp-user'),p=v('inp-pass');
+  if(!u||!p){showErr('login-err','กรุณากรอกข้อมูลให้ครบ');return;}
+  el('login-err').classList.add('hidden');
+  showOverlay('กำลังตรวจสอบ...');
+  gRun('login',{username:u,password:p}).then(function(r){
+    hideOverlay();
+    if(!r||!r.success){showErr('login-err',(r&&r.message)||'Login ไม่สำเร็จ');return;}
+    S.user=r;
+    el('nav-packer').textContent=(r.displayName||'')+' · '+(r.role==='admin'?'ผู้ดูแล':'พนักงาน');
+    el('info-packer').textContent=r.displayName||'';
+    if(r.role==='admin')el('admin-nav-btn').classList.remove('hidden');
+    showScreen('record');
+    setupBarcode();
+    toast('✅ เข้าสู่ระบบสำเร็จ');
+  }).catch(function(e){hideOverlay();showErr('login-err','❌ '+(e.message||e));});
+}
+
+function doLogout() {
+  if(S.recording){toast('⚠️ หยุดบันทึกก่อนออก');return;}
+  stopCamera(); S.user=null;
+  el('admin-nav-btn').classList.add('hidden');
+  showScreen('login'); el('inp-user').value=''; el('inp-pass').value='';
+}
+
+// ═══════════════════════════════════════
+// CAMERA — ทำงานโดยตรง (ไม่มี iframe!)
+// ═══════════════════════════════════════
+function startCamera() {
+  el('cam-status-text').textContent='⏳ กำลังเปิดกล้อง...';
+  el('cam-status-text').className='text-yellow-400';
+  navigator.mediaDevices.getUserMedia({video:true,audio:true})
+  .then(function(stream){onCamReady(stream);})
+  .catch(function(e1){
+    navigator.mediaDevices.getUserMedia({video:true,audio:false})
+    .then(function(stream){onCamReady(stream);toast('⚠️ ไม่มีไมค์');})
+    .catch(function(e2){
+      el('cam-status-text').textContent='🔴 '+e2.name;
+      el('cam-status-text').className='text-red-400';
+      toast('❌ เปิดกล้องไม่ได้: '+e2.message,5000);
+    });
+  });
+}
+
+function onCamReady(stream) {
+  S.stream=stream;
+  var vid=el('videoEl'); vid.srcObject=stream; vid.play().catch(function(){});
+  el('cam-placeholder').style.display='none';
+  var hasAudio=stream.getAudioTracks().length>0;
+  el('cam-status-text').textContent='🟢 กล้องพร้อม'+(hasAudio?' + ไมค์':'');
+  el('cam-status-text').className='text-emerald-400';
+}
+
+function stopCamera(){if(S.stream)S.stream.getTracks().forEach(function(t){t.stop();});S.stream=null;}
+
+// ═══════════════════════════════════════
+// BARCODE SCANNER
+// ═══════════════════════════════════════
+function setupBarcode() {
+  var buf='',timer=null;
+  document.addEventListener('keydown',function(e){
+    var a=document.activeElement;
+    if(a&&a.tagName==='INPUT'&&['text','password','email','search'].indexOf(a.type)!==-1)return;
+    if(a&&a.tagName==='TEXTAREA')return;
+    if(e.key==='Enter'){e.preventDefault();if(buf.length>=3)handleBarcode(buf.trim());buf='';clearTimeout(timer);}
+    else if(e.key.length===1){buf+=e.key;clearTimeout(timer);timer=setTimeout(function(){buf='';},300);}
+  });
+}
+
+function handleBarcode(code) {
+  if(!S.recording){
+    S.orderNumber=code;S.trackingNumber=null;
+    el('bc-order').textContent=code;el('bc-tracking').textContent='รอยิง...';
+    toast('📋 คำสั่งซื้อ: '+code); startRecording();
+  } else {
+    S.trackingNumber=code;
+    el('bc-tracking').textContent=code;
+    toast('📦 เลขพัสดุ: '+code); stopRecording();
+  }
+}
+
+// ═══════════════════════════════════════
+// RECORDING
+// ═══════════════════════════════════════
+function startRecordingManual(){
+  S.orderNumber='MANUAL-'+Date.now();S.trackingNumber=null;
+  el('bc-order').textContent=S.orderNumber;el('bc-tracking').textContent='รอยิง...';
+  startRecording();
+}
+function stopRecordingManual(){if(!S.trackingNumber)S.trackingNumber='MANUAL';stopRecording();}
+
+function startRecording() {
+  if(!S.stream){toast('⚠️ กรุณากดเปิดกล้องก่อน');return;}
+  if(S.recording)return;
+  var mime='';
+  ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'].forEach(function(m){if(!mime&&MediaRecorder.isTypeSupported(m))mime=m;});
+  if(!mime){toast('❌ Browser ไม่รองรับ');return;}
+  S.chunks=[];S.t0=new Date();
+  try{S.recorder=new MediaRecorder(S.stream,{mimeType:mime,videoBitsPerSecond:2500000});}catch(e){toast('❌ '+e.message);return;}
+  S.recorder.ondataavailable=function(e){if(e.data&&e.data.size>0)S.chunks.push(e.data);};
+  S.recorder.onstop=onRecordStop;
+  S.recorder.start(1000); S.recording=true;
+  setRecUI(true); startTimer();
+  el('info-start').textContent=fmtTime(S.t0);el('info-end').textContent='-';el('info-dur').textContent='-';
+}
+
+function stopRecording(){if(!S.recorder||!S.recording)return;S.recorder.stop();S.recording=false;clearInterval(S.timerIv);setRecUI(false);}
+
+function onRecordStop() {
+  var end=new Date(),dur=Math.round((end-S.t0)/1000);
+  var mime=S.recorder.mimeType,ext=mime.indexOf('mp4')!==-1?'.mp4':'.webm';
+  var fn=(S.orderNumber||'NO').replace(/[^a-zA-Z0-9_-]/g,'')+'-'+(S.trackingNumber||'NO').replace(/[^a-zA-Z0-9_-]/g,'')+ext;
+  if(!S.chunks.length){toast('❌ ไม่มีข้อมูลวิดีโอ');return;}
+  var blob=new Blob(S.chunks,{type:mime});
+  el('info-end').textContent=fmtTime(end);el('info-dur').textContent=fmtDur(dur);
+  doUpload(blob,fn,dur,end,el('ocr-text')?el('ocr-text').value.trim():'');
+}
+
+// ═══════════════════════════════════════
+// UPLOAD (fetch + OAuth — วิธีที่ใช้งานได้จริง)
+// ═══════════════════════════════════════
+function doUpload(blob,filename,durationSec,endTime,products) {
+  if(S.uploading){toast('⚠️ กำลังอัปโหลดอยู่');return;}
+  S.uploading=true; setUpload(true,5,'กำลังขอ token...');
+  gRun('getUploadInfo',{}).then(function(info){
+    if(!info.success)throw new Error(info.message);
+    setUpload(true,10,'เริ่มอัปโหลด...');
+    if(blob.size<5*1024*1024)return simpleUp(blob,filename,info,durationSec,endTime,products);
+    else return resumableUp(blob,filename,info,durationSec,endTime,products);
+  }).catch(function(err){S.uploading=false;setUpload(false);toast('❌ '+err.message,6000);});
+}
+
+function simpleUp(blob,fn,info,dur,end,prod){
+  setUpload(true,30,'อัปโหลด...');
+  var fd=new FormData();
+  fd.append('metadata',new Blob([JSON.stringify({name:fn,parents:[info.folderId]})],{type:'application/json'}));
+  fd.append('file',blob);
+  return fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{
+    method:'POST',headers:{'Authorization':'Bearer '+info.token},body:fd
+  }).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+  .then(function(d){return uploadDone(d,info,dur,end,prod);});
+}
+
+function resumableUp(blob,fn,info,dur,end,prod){
+  setUpload(true,15,'เริ่มอัปโหลด...');
+  return fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id',{
+    method:'POST',headers:{'Authorization':'Bearer '+info.token,'Content-Type':'application/json',
+      'X-Upload-Content-Type':blob.type||'video/webm','X-Upload-Content-Length':String(blob.size)},
+    body:JSON.stringify({name:fn,parents:[info.folderId]})
+  }).then(function(r){if(!r.ok)throw new Error('Init HTTP '+r.status);
+    var url=r.headers.get('Location');if(!url)throw new Error('No upload URL');
+    var CHUNK=5*1024*1024,offset=0;
+    function next(){
+      var e=Math.min(offset+CHUNK,blob.size),chunk=blob.slice(offset,e);
+      return fetch(url,{method:'PUT',headers:{'Content-Range':'bytes '+offset+'-'+(e-1)+'/'+blob.size,'Content-Type':blob.type||'video/webm'},body:chunk})
+      .then(function(r2){offset=e;var pct=15+Math.round(offset/blob.size*70);setUpload(true,pct,'อัปโหลด '+pct+'%');
+        if(r2.status===200||r2.status===201)return r2.json();
+        if(r2.status===308){var rng=r2.headers.get('Range');if(rng)offset=parseInt(rng.split('-')[1],10)+1;return next();}
+        throw new Error('HTTP '+r2.status);
+      });
+    }
+    return next();
+  }).then(function(d){return uploadDone(d,info,dur,end,prod);});
+}
+
+function uploadDone(driveData,info,dur,end,prod){
+  setUpload(true,90,'บันทึกข้อมูล...');
+  var fid=driveData.id||'';
+  var logData={date:info.date,startTime:S.t0?fmtTime(S.t0):'-',endTime:fmtTime(end),durationSec:dur,
+    packer:S.user.displayName,orderNumber:S.orderNumber||'',trackingNumber:S.trackingNumber||'',
+    products:prod,fileId:fid,fileURL:fid?'https://drive.google.com/file/d/'+fid+'/view':''};
+  return gRun('savePackingLog',logData).then(function(){
+    setUpload(true,100,'✅ สำเร็จ!');
+    setTimeout(function(){setUpload(false);showSuccess(logData);
+      S.uploading=false;S.orderNumber=null;S.trackingNumber=null;
+      el('bc-order').textContent='-';el('bc-tracking').textContent='-';
+      el('ocr-box').classList.add('hidden');el('ocr-text').value='';
+    },1200);
+  });
+}
+
+// ═══════════════════════════════════════
+// OCR
+// ═══════════════════════════════════════
+function captureLabel() {
+  if(S.ocrBusy)return;S.ocrBusy=true;
+  var vid=el('videoEl'),cvs=el('ocr-canvas');
+  cvs.width=vid.videoWidth||640;cvs.height=vid.videoHeight||480;
+  cvs.getContext('2d').drawImage(vid,0,0,cvs.width,cvs.height);
+  el('ocr-box').classList.remove('hidden');el('ocr-text').value='กำลังอ่าน...';
+  if(typeof Tesseract!=='undefined'){
+    Tesseract.recognize(cvs,'tha+eng').then(function(r){
+      el('ocr-text').value=(r.data&&r.data.text)?r.data.text.trim():'(ไม่พบข้อความ)';S.ocrBusy=false;
+    }).catch(function(){el('ocr-text').value='(OCR ไม่พร้อม)';S.ocrBusy=false;});
+  } else { el('ocr-text').value='(ไม่มี Tesseract.js)';S.ocrBusy=false; }
+}
+
+// ═══════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════
+function loadStats(period) {
+  document.querySelectorAll('.period-btn').forEach(function(b){b.classList.toggle('active',b.dataset.p===period);});
+  showOverlay('กำลังโหลดรายงาน...');
+  gRun('getPackingStats',{period:period}).then(function(r){
+    hideOverlay();if(!r||!r.success){toast('⚠️ '+(r&&r.message||'โหลดไม่ได้'));return;}
+    try{renderStats(r);}catch(e){toast('❌ '+e.message);}
+  }).catch(function(e){hideOverlay();toast('❌ '+e.message);});
+}
+
+function renderStats(d) {
+  var logs=d.logs||[],ps=d.packerStats||[],ds=d.dateStats||[],total=d.total||0;
+  el('kpi-total').textContent=total;el('kpi-packers').textContent=ps.length;
+  var avg=ps.length?Math.round(ps.reduce(function(s,p){return s+p.avgSec;},0)/ps.length):0;
+  el('kpi-avg').textContent=fmtDur(avg);
+  var peak=0;ds.forEach(function(x){if(x[1]>peak)peak=x[1];});el('kpi-peak').textContent=peak||'-';
+  // Charts
+  var ctx1=document.getElementById('chart-date').getContext('2d');
+  if(S.charts.bar)S.charts.bar.destroy();
+  S.charts.bar=new Chart(ctx1,{type:'bar',data:{labels:ds.map(function(x){return x[0];}),datasets:[{label:'ครั้ง',data:ds.map(function(x){return x[1];}),backgroundColor:'rgba(59,130,246,.7)',borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{color:'#64748b'},grid:{color:'#1e293b'}},x:{ticks:{color:'#64748b'},grid:{display:false}}}}});
+  var ctx2=document.getElementById('chart-pie').getContext('2d');
+  if(S.charts.pie)S.charts.pie.destroy();
+  var COLORS=['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6'];
+  S.charts.pie=new Chart(ctx2,{type:'doughnut',data:{labels:ps.map(function(p){return p.packer;}),datasets:[{data:ps.map(function(p){return p.count;}),backgroundColor:COLORS.slice(0,ps.length),borderWidth:0}]},options:{responsive:true,plugins:{legend:{position:'right',labels:{color:'#cbd5e1',font:{size:11}}}}}});
+  // Rankings
+  var medals=['🥇','🥈','🥉'],maxC=ps.length&&ps[0].count?ps[0].count:1,rh='';
+  if(!ps.length)rh='<p class="text-slate-500 text-sm">ไม่มีข้อมูล</p>';
+  else ps.forEach(function(p,i){var pct=Math.round(p.count/maxC*100);
+    rh+='<div class="flex items-center gap-4 bg-slate-800/60 rounded-xl p-4"><div class="text-2xl w-8 text-center">'+(medals[i]||(i+1))+'</div><div class="flex-1 min-w-0"><div class="flex justify-between items-center mb-1 flex-wrap gap-1"><span class="font-semibold text-sm">'+p.packer+'</span><span class="text-slate-400 text-xs">'+p.count+' ครั้ง · เฉลี่ย '+fmtDur(p.avgSec)+' · '+p.activeDays+' วัน</span></div><div class="bg-slate-700 rounded-full h-1.5"><div style="width:'+pct+'%;background:'+(COLORS[i]||'#64748b')+'" class="h-1.5 rounded-full"></div></div></div></div>';
+  });
+  el('rankings').innerHTML=rh;
+  // Table
+  var rows=logs.slice().reverse().slice(0,50),th='';
+  if(!rows.length)th='<tr><td colspan="8" class="py-8 text-center text-slate-500">ไม่มีข้อมูล</td></tr>';
+  else rows.forEach(function(l){
+    var vl=l.fileURL?'<a href="'+l.fileURL+'" target="_blank" class="text-blue-400 hover:underline">▶ ดู</a>':'−';
+    if(l.fileId)vl+=' <a href="https://drive.google.com/uc?export=download&id='+l.fileId+'" target="_blank" class="text-emerald-400 hover:underline">⬇</a>';
+    th+='<tr class="border-b border-slate-800"><td class="py-2 pr-3 text-slate-400">'+(l.date||'-')+'</td><td class="py-2 pr-3 font-mono">'+(l.startTime||'-')+'</td><td class="py-2 pr-3">'+(l.packer||'-')+'</td><td class="py-2 pr-3 font-mono text-emerald-400">'+fmtDur(l.durationSec)+'</td><td class="py-2 pr-3 text-yellow-400 font-mono">'+(l.orderNumber||'-')+'</td><td class="py-2 pr-3 text-blue-400 font-mono">'+(l.trackingNumber||'-')+'</td><td class="py-2 pr-3 text-slate-400">'+((l.products||'-').substring(0,40))+'</td><td class="py-2 whitespace-nowrap">'+vl+'</td></tr>';
+  });
+  el('logs-tbody').innerHTML=th;
+}
+
+// ═══════════════════════════════════════
+// ADMIN
+// ═══════════════════════════════════════
+function loadUsers(){gRun('getUsers',{}).then(function(r){if(!r||!r.success)return;var h='';
+  r.users.forEach(function(u){var rc=u.role==='admin'?'bg-purple-900/60 text-purple-300':'bg-blue-900/60 text-blue-300';
+    h+='<div class="flex items-center justify-between bg-slate-800 rounded-xl px-4 py-3"><div class="flex items-center gap-2 min-w-0 flex-wrap"><span class="font-medium text-sm">'+u.displayName+'</span><span class="text-slate-500 text-xs">@'+u.username+'</span><span class="text-xs px-2 py-0.5 rounded-full '+rc+'">'+(u.role==='admin'?'ผู้ดูแล':'พนักงาน')+'</span></div><div class="flex items-center gap-2"><span class="text-xs '+(u.active?'text-emerald-400':'text-red-400')+'">'+(u.active?'✓':'✗')+'</span><button onclick="toggleUser(\''+u.username+'\','+!u.active+')" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-lg text-slate-300">'+(u.active?'ปิด':'เปิด')+'</button></div></div>';
+  });el('user-list').innerHTML=h||'<p class="text-slate-500 text-sm">ไม่มีผู้ใช้</p>';});}
+
+function doAddUser(){var u=v('a-user'),p=v('a-pass'),n=v('a-name'),r=v('a-role');
+  if(!u||!p||!n){showInline('add-result','กรอกให้ครบ','err');return;}
+  gRun('addUser',{username:u,password:p,role:r,displayName:n}).then(function(res){
+    if(res.success){showInline('add-result','✅ เพิ่มสำเร็จ','ok');loadUsers();el('a-user').value='';el('a-pass').value='';el('a-name').value='';}
+    else showInline('add-result','❌ '+res.message,'err');});}
+
+function toggleUser(u,a){gRun('updateUserStatus',{username:u,active:a}).then(function(){loadUsers();});}
+function doSetupTriggers(){gRun('setupTriggers',{}).then(function(r){el('sys-result').classList.remove('hidden');el('sys-result').textContent='✅ ตั้งค่าสำเร็จ';});}
+function doManualCleanup(){if(!confirm('ลบโฟลเดอร์เก่ากว่า 45 วัน?'))return;showOverlay('กำลังลบ...');
+  gRun('cleanOldFolders',{}).then(function(r){hideOverlay();el('sys-result').classList.remove('hidden');el('sys-result').textContent='✅ ลบ '+r.deleted.length+' โฟลเดอร์';}).catch(function(e){hideOverlay();toast('❌ '+e.message);});}
+
+// ═══════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════
+function setRecUI(rec){
+  if(rec){el('status-icon').textContent='🔴';el('status-text').textContent='กำลังบันทึก...';el('status-text').className='font-bold text-base text-red-400';
+    el('status-sub').textContent='ยิง Barcode เลขพัสดุเพื่อหยุด';el('btn-start').disabled=true;el('btn-start').className='bg-slate-700 text-slate-500 font-bold py-4 rounded-2xl text-sm cursor-not-allowed';
+    el('btn-stop').disabled=false;el('btn-stop').className='bg-red-600 hover:bg-red-500 font-bold py-4 rounded-2xl text-sm';el('rec-badge').classList.remove('hidden');el('ocr-btn').classList.remove('hidden');el('success-box').classList.add('hidden');
+  }else{el('status-icon').textContent='⏸️';el('status-text').textContent='พร้อมบันทึก';el('status-text').className='font-bold text-base text-slate-200';
+    el('status-sub').textContent='ยิง Barcode คำสั่งซื้อเพื่อเริ่ม หรือกดปุ่มด้านล่าง';el('btn-start').disabled=false;el('btn-start').className='bg-emerald-700 hover:bg-emerald-600 font-bold py-4 rounded-2xl text-sm';
+    el('btn-stop').disabled=true;el('btn-stop').className='bg-slate-700 text-slate-500 font-bold py-4 rounded-2xl text-sm cursor-not-allowed';el('rec-badge').classList.add('hidden');el('ocr-btn').classList.add('hidden');}
+}
+function startTimer(){clearInterval(S.timerIv);S.timerIv=setInterval(function(){if(!S.t0)return;var s=Math.floor((new Date()-S.t0)/1000);el('rec-timer').textContent=pad(Math.floor(s/60))+':'+pad(s%60);},1000);}
+function setUpload(show,pct,label){el('upload-box').classList.toggle('hidden',!show);if(show){el('upload-bar').style.width=pct+'%';el('upload-label').textContent=label;}}
+function showSuccess(d){el('success-box').classList.remove('hidden');var h='<b>'+d.packer+'</b> · '+d.date+' '+d.startTime+' – '+d.endTime+'<br>ระยะเวลา: <b>'+fmtDur(d.durationSec)+'</b>';
+  if(d.orderNumber)h+='<br>คำสั่งซื้อ: <span class="text-yellow-400">'+d.orderNumber+'</span>';
+  if(d.trackingNumber)h+=' · พัสดุ: <span class="text-blue-400">'+d.trackingNumber+'</span>';
+  if(d.products)h+='<br>สินค้า: <span class="text-purple-300">'+d.products.substring(0,80)+'</span>';
+  el('success-info').innerHTML=h;el('success-link').href=d.fileURL||'#';el('success-link').style.display=d.fileURL?'inline-block':'none';}
+function showOverlay(t){el('overlay').classList.remove('hidden');el('overlay-text').textContent=t;}
+function hideOverlay(){el('overlay').classList.add('hidden');}
+function showErr(id,msg){var e=el(id);e.textContent=msg;e.classList.remove('hidden');}
+function showInline(id,msg,type){var e=el(id);e.textContent=msg;e.className='text-xs '+(type==='ok'?'text-emerald-400':'text-red-400');e.classList.remove('hidden');setTimeout(function(){e.classList.add('hidden');},4000);}
+function toast(msg,dur){dur=dur||3000;var d=document.createElement('div');d.className='pointer-events-auto bg-slate-800 border border-slate-700 text-white px-5 py-2.5 rounded-full shadow-xl text-sm';d.textContent=msg;el('toast-container').appendChild(d);setTimeout(function(){if(d.parentNode)d.parentNode.removeChild(d);},dur);}
+
+function el(id){return document.getElementById(id);}
+function v(id){var e=el(id);return e?e.value.trim():'';}
+function pad(n){return n<10?'0'+n:''+n;}
+function fmtTime(d){return d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});}
+function fmtDur(sec){if(!sec||isNaN(sec))return '-';var m=Math.floor(sec/60),s=sec%60;return m>0?m+':'+pad(s)+' น.':s+' วิ';}
+Chart.defaults.color='#64748b';Chart.defaults.borderColor='#1e293b';
+</script>
+</body>
+</html>
