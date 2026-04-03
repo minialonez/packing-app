@@ -158,14 +158,22 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center gap-4">
 <button onclick="showScreen('record')" class="text-slate-400 hover:text-white text-sm">← กลับ</button><span class="font-bold text-sm">⚙️ จัดการระบบ</span></nav>
 <div class="flex-1 overflow-y-auto p-4 max-w-4xl mx-auto w-full space-y-4">
-<div class="grad-card rounded-2xl p-5"><h3 class="font-semibold text-sm mb-4">➕ เพิ่มผู้ใช้</h3>
+<div class="grad-card rounded-2xl p-5">
+<div class="flex items-center justify-between mb-4">
+<h3 id="form-title" class="font-semibold text-sm">➕ เพิ่มผู้ใช้</h3>
+<button id="btn-cancel-edit" onclick="cancelEdit()" class="hidden text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-lg text-slate-300">✕ ยกเลิกแก้ไข</button>
+</div>
+<input id="a-edit-user" type="hidden" value="">
 <div class="grid grid-cols-2 gap-3">
 <div><label class="text-xs text-slate-400">Username</label><input id="a-user" type="text" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none"></div>
-<div><label class="text-xs text-slate-400">Password</label><input id="a-pass" type="password" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none"></div>
+<div><label class="text-xs text-slate-400">Password <span id="pass-hint" class="text-slate-600 hidden">(เว้นว่าง = ไม่เปลี่ยน)</span></label><input id="a-pass" type="password" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none"></div>
 <div><label class="text-xs text-slate-400">ชื่อ-นามสกุล</label><input id="a-name" type="text" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none"></div>
 <div><label class="text-xs text-slate-400">บทบาท</label><select id="a-role" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white"><option value="packer">พนักงาน</option><option value="admin">ผู้ดูแล</option></select></div>
 </div>
-<div class="flex items-center gap-3 mt-4"><button onclick="doAddUser()" class="bg-blue-600 hover:bg-blue-500 text-sm font-medium px-5 py-2 rounded-xl">เพิ่มผู้ใช้</button><div id="add-result" class="text-xs hidden"></div></div>
+<div class="flex items-center gap-3 mt-4">
+<button id="btn-save-user" onclick="doSaveUser()" class="bg-blue-600 hover:bg-blue-500 text-sm font-medium px-5 py-2 rounded-xl">เพิ่มผู้ใช้</button>
+<div id="add-result" class="text-xs hidden"></div>
+</div>
 </div>
 <div class="grad-card rounded-2xl p-5"><h3 class="font-semibold text-sm mb-4">👥 รายชื่อผู้ใช้</h3><div id="user-list" class="space-y-2 text-sm text-slate-400">กำลังโหลด...</div></div>
 <div class="grad-card rounded-2xl p-5"><h3 class="font-semibold text-sm mb-4">🔧 ระบบ — ลบวิดีโอเก่า</h3>
@@ -523,10 +531,60 @@ function loadUsers(){gRun('getUsers',{}).then(function(r){if(!r||!r.success)retu
     h+='<div class="flex items-center justify-between bg-slate-800 rounded-xl px-4 py-3"><div class="flex items-center gap-2 min-w-0 flex-wrap"><span class="font-medium text-sm">'+u.displayName+'</span><span class="text-slate-500 text-xs">@'+u.username+'</span><span class="text-xs px-2 py-0.5 rounded-full '+rc+'">'+(u.role==='admin'?'ผู้ดูแล':'พนักงาน')+'</span></div>'
     +'<div class="flex items-center gap-2">'
     +'<span class="text-xs '+(u.active?'text-emerald-400':'text-red-400')+'">'+(u.active?'✓':'✗')+'</span>'
+    +'<button onclick="editUser(\''+u.username+'\',\''+u.displayName+'\',\''+u.role+'\')" class="text-xs bg-blue-900/60 hover:bg-blue-800 px-3 py-1 rounded-lg text-blue-300">แก้ไข</button>'
     +'<button onclick="toggleUser(\''+u.username+'\','+!u.active+')" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-lg text-slate-300">'+(u.active?'ปิด':'เปิด')+'</button>'
     +(isSelf?'':'<button onclick="deleteUser(\''+u.username+'\',\''+u.displayName+'\')" class="text-xs bg-red-900/60 hover:bg-red-800 px-3 py-1 rounded-lg text-red-300">ลบ</button>')
     +'</div></div>';
   });el('user-list').innerHTML=h||'<p class="text-slate-500 text-sm">ไม่มีผู้ใช้</p>';});}
+
+function editUser(username,displayName,role){
+  el('a-edit-user').value=username;
+  el('a-user').value=username; el('a-user').disabled=true;
+  el('a-user').classList.add('opacity-50');
+  el('a-pass').value='';
+  el('a-name').value=displayName;
+  el('a-role').value=role;
+  el('form-title').textContent='✏️ แก้ไขผู้ใช้: '+displayName;
+  el('btn-save-user').textContent='บันทึกการแก้ไข';
+  el('btn-save-user').className='bg-amber-600 hover:bg-amber-500 text-sm font-medium px-5 py-2 rounded-xl';
+  el('btn-cancel-edit').classList.remove('hidden');
+  el('pass-hint').classList.remove('hidden');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function cancelEdit(){
+  el('a-edit-user').value='';
+  el('a-user').value=''; el('a-user').disabled=false;
+  el('a-user').classList.remove('opacity-50');
+  el('a-pass').value=''; el('a-name').value='';
+  el('a-role').value='packer';
+  el('form-title').textContent='➕ เพิ่มผู้ใช้';
+  el('btn-save-user').textContent='เพิ่มผู้ใช้';
+  el('btn-save-user').className='bg-blue-600 hover:bg-blue-500 text-sm font-medium px-5 py-2 rounded-xl';
+  el('btn-cancel-edit').classList.add('hidden');
+  el('pass-hint').classList.add('hidden');
+}
+
+function doSaveUser(){
+  var editingUser=v('a-edit-user');
+  var u=v('a-user'),p=v('a-pass'),n=v('a-name'),r=v('a-role');
+
+  if(editingUser){
+    // ═══ โหมดแก้ไข ═══
+    if(!n){showInline('add-result','กรอกชื่อ-นามสกุล','err');return;}
+    gRun('updateUser',{username:editingUser,password:p,role:r,displayName:n}).then(function(res){
+      if(res.success){showInline('add-result','✅ แก้ไขสำเร็จ','ok');cancelEdit();loadUsers();}
+      else showInline('add-result','❌ '+res.message,'err');
+    });
+  } else {
+    // ═══ โหมดเพิ่ม ═══
+    if(!u||!p||!n){showInline('add-result','กรอกให้ครบ','err');return;}
+    gRun('addUser',{username:u,password:p,role:r,displayName:n}).then(function(res){
+      if(res.success){showInline('add-result','✅ เพิ่มสำเร็จ','ok');cancelEdit();loadUsers();}
+      else showInline('add-result','❌ '+res.message,'err');
+    });
+  }
+}
 
 function deleteUser(username,displayName){
   if(!confirm('ต้องการลบ "'+displayName+'" (@'+username+') จริงหรือ?'))return;
@@ -535,12 +593,6 @@ function deleteUser(username,displayName){
     else toast('❌ '+r.message);
   });
 }
-function doAddUser(){var u=v('a-user'),p=v('a-pass'),n=v('a-name'),r=v('a-role');
-  if(!u||!p||!n){showInline('add-result','กรอกให้ครบ','err');return;}
-  gRun('addUser',{username:u,password:p,role:r,displayName:n}).then(function(res){
-    if(res.success){showInline('add-result','✅ เพิ่มสำเร็จ','ok');loadUsers();el('a-user').value='';el('a-pass').value='';el('a-name').value='';}
-    else showInline('add-result','❌ '+res.message,'err');});}
-
 function toggleUser(u,a){gRun('updateUserStatus',{username:u,active:a}).then(function(){loadUsers();});}
 function doSetupTriggers(){
   var days=parseInt(el('del-days').value)||45;
