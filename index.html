@@ -6,11 +6,14 @@
 <title>ระบบบันทึกวิดีโอการแพคสินค้า</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@2/dist/tesseract.min.js"></script>
 <style>
 *{box-sizing:border-box}
-body{background:#0f172a;font-family:'Segoe UI',sans-serif}
-.screen{display:none}.screen.active{display:block}
+body{background:#0f172a;font-family:'Segoe UI',sans-serif;overflow-x:hidden}
+.screen{position:fixed;inset:0;opacity:0;visibility:hidden;transition:opacity .4s ease,visibility .4s ease;z-index:1;overflow-y:auto;background:#0f172a}
+.screen.active{opacity:1;visibility:visible;z-index:2}
+#screen-login.active{z-index:10}
+#screen-fade{position:fixed;inset:0;background:#0f172a;z-index:100;opacity:0;visibility:hidden;transition:opacity .35s ease,visibility .35s ease;display:flex;align-items:center;justify-content:center}
+#screen-fade.active{opacity:1;visibility:visible}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 .rec-blink{animation:blink 1s infinite}
@@ -45,7 +48,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 </div>
 <button onclick="doLogin()" class="w-full bg-blue-600 hover:bg-blue-500 font-semibold py-3 rounded-xl text-sm mt-2">เข้าสู่ระบบ</button>
 </div>
-<p class="text-slate-600 text-xs text-center mt-6">Default: admin / admin123</p>
+<p class="text-slate-600 text-xs text-center mt-6">Admin: 009 / bxkssnrz</p>
 </div></div></div>
 
 <!-- RECORD -->
@@ -70,16 +73,11 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <span class="text-xs font-bold text-red-400">REC</span>
 <span id="rec-timer" class="text-xs font-mono text-white ml-1">00:00</span></div>
 <div id="cam-placeholder" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 p-4">
-<div class="text-5xl mb-4">🎥</div>
-<button onclick="startCamera()" class="bg-blue-600 hover:bg-blue-500 text-white text-base font-bold px-8 py-4 rounded-2xl mb-3 w-full max-w-xs">📹 กดเพื่อเปิดกล้อง</button>
-<p class="text-slate-500 text-xs">กล้องจะแสดง live preview ที่นี่</p>
+<div class="text-5xl mb-3 spin">⚙️</div>
+<p class="text-slate-400 text-sm mb-3">กำลังเปิดกล้องอัตโนมัติ...</p>
+<button onclick="startCamera()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs px-6 py-2 rounded-xl">กดเปิดกล้อง (ถ้าไม่เปิดอัตโนมัติ)</button>
 </div></div>
 
-<button id="ocr-btn" onclick="captureLabel()" class="hidden w-full bg-purple-700/80 hover:bg-purple-600 text-white text-sm py-2.5 rounded-xl font-medium">📸 อ่านใบปะหน้า (OCR)</button>
-<canvas id="ocr-canvas" class="hidden"></canvas>
-<div id="ocr-box" class="hidden grad-card rounded-2xl p-4">
-<span class="text-xs text-slate-400 uppercase tracking-wider">📄 ชื่อสินค้า (แก้ไขได้)</span>
-<textarea id="ocr-text" rows="3" placeholder="ชื่อสินค้า..." class="mt-2 w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-xl p-3 resize-none focus:outline-none focus:border-purple-500"></textarea>
 </div></div>
 
 <!-- RIGHT: Controls -->
@@ -178,6 +176,11 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 </div><div id="sys-result" class="hidden mt-3 text-xs text-slate-300 bg-slate-800 rounded-xl p-3"></div>
 </div></div></div>
 
+<!-- FADE TRANSITION -->
+<div id="screen-fade">
+<div class="text-center"><div class="text-5xl mb-3">📦</div><div id="fade-text" class="text-slate-400 text-sm">กำลังโหลด...</div></div>
+</div>
+
 <!-- OVERLAY -->
 <div id="overlay" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
 <div class="grad-card rounded-2xl p-8 text-center shadow-2xl min-w-48"><div class="text-4xl spin mb-3">⚙️</div><div id="overlay-text" class="text-slate-300 text-sm">กำลังโหลด...</div></div></div>
@@ -212,17 +215,36 @@ function gRun(action, params) {
 // STATE
 // ═══════════════════════════════════════
 var S = { user:null, recording:false, recorder:null, chunks:[], stream:null, t0:null, timerIv:null,
-  orderNumber:null, trackingNumber:null, charts:{}, ocrBusy:false, uploading:false };
+  orderNumber:null, trackingNumber:null, charts:{}, uploading:false };
 
 // ═══════════════════════════════════════
 // SCREEN ROUTER
 // ═══════════════════════════════════════
-function showScreen(name) {
-  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
-  var t = document.getElementById('screen-'+name);
-  if (t) t.classList.add('active');
-  if (name==='dashboard') loadStats('today');
-  if (name==='admin') loadUsers();
+function showScreen(name, fadeMsg) {
+  var target = document.getElementById('screen-'+name);
+  if (!target) return;
+  var current = document.querySelector('.screen.active');
+  if (current && current.id === 'screen-'+name) return;
+
+  var fade = el('screen-fade');
+  var fadeText = el('fade-text');
+  if (fadeText) fadeText.textContent = fadeMsg || 'กำลังโหลด...';
+
+  // Step 1: จอมืด fade-in
+  fade.classList.add('active');
+
+  setTimeout(function() {
+    // Step 2: สลับหน้าจอ (ตอนจอมืดอยู่)
+    document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
+    target.classList.add('active');
+
+    if (name==='dashboard') loadStats('today');
+    if (name==='admin') loadUsers();
+    if (name==='record') { var inp=el('bc-input'); if(inp)inp.focus(); }
+
+    // Step 3: จอมืด fade-out
+    setTimeout(function(){ fade.classList.remove('active'); }, 200);
+  }, 350);
 }
 
 // ═══════════════════════════════════════
@@ -240,9 +262,10 @@ function doLogin() {
     el('nav-packer').textContent=(r.displayName||'')+' · '+(r.role==='admin'?'ผู้ดูแล':'พนักงาน');
     el('info-packer').textContent=r.displayName||'';
     if(r.role==='admin')el('admin-nav-btn').classList.remove('hidden');
-    showScreen('record');
+    showScreen('record', 'ยินดีต้อนรับ ' + (r.displayName || r.username));
     setupBarcode();
-    toast('✅ เข้าสู่ระบบสำเร็จ');
+    // เปิดกล้องอัตโนมัติหลัง login
+    setTimeout(function(){ startCamera(); toast('✅ เข้าสู่ระบบสำเร็จ'); }, 600);
   }).catch(function(e){hideOverlay();showErr('login-err','❌ '+(e.message||e));});
 }
 
@@ -250,7 +273,8 @@ function doLogout() {
   if(S.recording){toast('⚠️ หยุดบันทึกก่อนออก');return;}
   stopCamera(); S.user=null;
   el('admin-nav-btn').classList.add('hidden');
-  showScreen('login'); el('inp-user').value=''; el('inp-pass').value='';
+  showScreen('login', 'ออกจากระบบ...');
+  setTimeout(function(){ el('inp-user').value=''; el('inp-pass').value=''; }, 600);
 }
 
 // ═══════════════════════════════════════
@@ -343,7 +367,12 @@ function startRecordingManual(){
 function stopRecordingManual(){if(!S.trackingNumber)S.trackingNumber='MANUAL';stopRecording();}
 
 function startRecording() {
-  if(!S.stream){toast('⚠️ กรุณากดเปิดกล้องก่อน');return;}
+  if(!S.stream){
+    toast('⏳ กำลังเปิดกล้อง...');
+    startCamera();
+    setTimeout(function(){ if(S.stream) startRecording(); else toast('❌ กรุณาอนุญาตกล้องก่อน'); },2000);
+    return;
+  }
   if(S.recording)return;
   var mime='';
   ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'].forEach(function(m){if(!mime&&MediaRecorder.isTypeSupported(m))mime=m;});
@@ -366,7 +395,7 @@ function onRecordStop() {
   if(!S.chunks.length){toast('❌ ไม่มีข้อมูลวิดีโอ');return;}
   var blob=new Blob(S.chunks,{type:mime});
   el('info-end').textContent=fmtTime(end);el('info-dur').textContent=fmtDur(dur);
-  doUpload(blob,fn,dur,end,el('ocr-text')?el('ocr-text').value.trim():'');
+  doUpload(blob,fn,dur,end,'');
 }
 
 // ═══════════════════════════════════════
@@ -427,31 +456,9 @@ function uploadDone(driveData,info,dur,end,prod){
     setTimeout(function(){setUpload(false);showSuccess(logData);
       S.uploading=false;S.orderNumber=null;S.trackingNumber=null;
       el('bc-order').textContent='-';el('bc-tracking').textContent='-';
-      el('ocr-box').classList.add('hidden');el('ocr-text').value='';
+      
       var inp=el('bc-input');if(inp){inp.value='';inp.focus();}
     },1200);
-  });
-}
-
-// ═══════════════════════════════════════
-// OCR
-// ═══════════════════════════════════════
-function captureLabel() {
-  if(S.ocrBusy)return;S.ocrBusy=true;
-  var vid=el('videoEl'),cvs=el('ocr-canvas');
-  cvs.width=vid.videoWidth||640;cvs.height=vid.videoHeight||480;
-  cvs.getContext('2d').drawImage(vid,0,0,cvs.width,cvs.height);
-  el('ocr-box').classList.remove('hidden');el('ocr-text').value='กำลังอ่าน OCR...';
-  Tesseract.recognize(cvs,'tha+eng',{
-    logger:function(m){if(m.status==='recognizing text'){
-      var pct=Math.round((m.progress||0)*100);
-      el('ocr-text').value='กำลังอ่าน... '+pct+'%';
-    }}
-  }).then(function(r){
-    el('ocr-text').value=(r.data&&r.data.text)?r.data.text.trim():'(ไม่พบข้อความ)';
-    S.ocrBusy=false;
-  }).catch(function(e){
-    el('ocr-text').value='(OCR ล้มเหลว: '+e.message+')';S.ocrBusy=false;
   });
 }
 
@@ -461,7 +468,10 @@ function captureLabel() {
 function loadStats(period) {
   document.querySelectorAll('.period-btn').forEach(function(b){b.classList.toggle('active',b.dataset.p===period);});
   showOverlay('กำลังโหลดรายงาน...');
-  gRun('getPackingStats',{period:period}).then(function(r){
+  var params = {period:period};
+  // พนักงานดูได้แค่ของตัวเอง
+  if(S.user && S.user.role !== 'admin') params.packer = S.user.displayName;
+  gRun('getPackingStats',params).then(function(r){
     hideOverlay();if(!r||!r.success){toast('⚠️ '+(r&&r.message||'โหลดไม่ได้'));return;}
     try{renderStats(r);}catch(e){toast('❌ '+e.message);}
   }).catch(function(e){hideOverlay();toast('❌ '+e.message);});
@@ -504,9 +514,22 @@ function renderStats(d) {
 // ═══════════════════════════════════════
 function loadUsers(){gRun('getUsers',{}).then(function(r){if(!r||!r.success)return;var h='';
   r.users.forEach(function(u){var rc=u.role==='admin'?'bg-purple-900/60 text-purple-300':'bg-blue-900/60 text-blue-300';
-    h+='<div class="flex items-center justify-between bg-slate-800 rounded-xl px-4 py-3"><div class="flex items-center gap-2 min-w-0 flex-wrap"><span class="font-medium text-sm">'+u.displayName+'</span><span class="text-slate-500 text-xs">@'+u.username+'</span><span class="text-xs px-2 py-0.5 rounded-full '+rc+'">'+(u.role==='admin'?'ผู้ดูแล':'พนักงาน')+'</span></div><div class="flex items-center gap-2"><span class="text-xs '+(u.active?'text-emerald-400':'text-red-400')+'">'+(u.active?'✓':'✗')+'</span><button onclick="toggleUser(\''+u.username+'\','+!u.active+')" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-lg text-slate-300">'+(u.active?'ปิด':'เปิด')+'</button></div></div>';
+    var isSelf = S.user && S.user.username === u.username;
+    h+='<div class="flex items-center justify-between bg-slate-800 rounded-xl px-4 py-3"><div class="flex items-center gap-2 min-w-0 flex-wrap"><span class="font-medium text-sm">'+u.displayName+'</span><span class="text-slate-500 text-xs">@'+u.username+'</span><span class="text-xs px-2 py-0.5 rounded-full '+rc+'">'+(u.role==='admin'?'ผู้ดูแล':'พนักงาน')+'</span></div>'
+    +'<div class="flex items-center gap-2">'
+    +'<span class="text-xs '+(u.active?'text-emerald-400':'text-red-400')+'">'+(u.active?'✓':'✗')+'</span>'
+    +'<button onclick="toggleUser(\''+u.username+'\','+!u.active+')" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-lg text-slate-300">'+(u.active?'ปิด':'เปิด')+'</button>'
+    +(isSelf?'':'<button onclick="deleteUser(\''+u.username+'\',\''+u.displayName+'\')" class="text-xs bg-red-900/60 hover:bg-red-800 px-3 py-1 rounded-lg text-red-300">ลบ</button>')
+    +'</div></div>';
   });el('user-list').innerHTML=h||'<p class="text-slate-500 text-sm">ไม่มีผู้ใช้</p>';});}
 
+function deleteUser(username,displayName){
+  if(!confirm('ต้องการลบ "'+displayName+'" (@'+username+') จริงหรือ?'))return;
+  gRun('deleteUser',{username:username}).then(function(r){
+    if(r.success){toast('✅ ลบผู้ใช้สำเร็จ');loadUsers();}
+    else toast('❌ '+r.message);
+  });
+}
 function doAddUser(){var u=v('a-user'),p=v('a-pass'),n=v('a-name'),r=v('a-role');
   if(!u||!p||!n){showInline('add-result','กรอกให้ครบ','err');return;}
   gRun('addUser',{username:u,password:p,role:r,displayName:n}).then(function(res){
@@ -524,10 +547,10 @@ function doManualCleanup(){if(!confirm('ลบโฟลเดอร์เก่�
 function setRecUI(rec){
   if(rec){el('status-icon').textContent='🔴';el('status-text').textContent='กำลังบันทึก...';el('status-text').className='font-bold text-base text-red-400';
     el('status-sub').textContent='ยิง Barcode เลขพัสดุเพื่อหยุด';el('btn-start').disabled=true;el('btn-start').className='bg-slate-700 text-slate-500 font-bold py-4 rounded-2xl text-sm cursor-not-allowed';
-    el('btn-stop').disabled=false;el('btn-stop').className='bg-red-600 hover:bg-red-500 font-bold py-4 rounded-2xl text-sm';el('rec-badge').classList.remove('hidden');el('ocr-btn').classList.remove('hidden');el('success-box').classList.add('hidden');
+    el('btn-stop').disabled=false;el('btn-stop').className='bg-red-600 hover:bg-red-500 font-bold py-4 rounded-2xl text-sm';el('rec-badge').classList.remove('hidden');el('success-box').classList.add('hidden');
   }else{el('status-icon').textContent='⏸️';el('status-text').textContent='พร้อมบันทึก';el('status-text').className='font-bold text-base text-slate-200';
     el('status-sub').textContent='ยิง Barcode คำสั่งซื้อเพื่อเริ่ม หรือกดปุ่มด้านล่าง';el('btn-start').disabled=false;el('btn-start').className='bg-emerald-700 hover:bg-emerald-600 font-bold py-4 rounded-2xl text-sm';
-    el('btn-stop').disabled=true;el('btn-stop').className='bg-slate-700 text-slate-500 font-bold py-4 rounded-2xl text-sm cursor-not-allowed';el('rec-badge').classList.add('hidden');el('ocr-btn').classList.add('hidden');}
+    el('btn-stop').disabled=true;el('btn-stop').className='bg-slate-700 text-slate-500 font-bold py-4 rounded-2xl text-sm cursor-not-allowed';el('rec-badge').classList.add('hidden');}
 }
 function startTimer(){clearInterval(S.timerIv);S.timerIv=setInterval(function(){if(!S.t0)return;var s=Math.floor((new Date()-S.t0)/1000);el('rec-timer').textContent=pad(Math.floor(s/60))+':'+pad(s%60);},1000);}
 function setUpload(show,pct,label){el('upload-box').classList.toggle('hidden',!show);if(show){el('upload-bar').style.width=pct+'%';el('upload-label').textContent=label;}}
