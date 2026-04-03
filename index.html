@@ -6,6 +6,7 @@
 <title>ระบบบันทึกวิดีโอการแพคสินค้า</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@2/dist/tesseract.min.js"></script>
 <style>
 *{box-sizing:border-box}
 body{background:#0f172a;font-family:'Segoe UI',sans-serif}
@@ -89,9 +90,16 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div id="status-sub" class="text-slate-500 text-xs mt-1">ยิง Barcode คำสั่งซื้อเพื่อเริ่ม หรือกดปุ่มด้านล่าง</div>
 </div>
 
-<div class="grad-card rounded-2xl p-4 grid grid-cols-2 gap-3">
+<!-- Scanner Input -->
+<div class="grad-card rounded-2xl p-4">
+<label class="text-xs text-slate-400 uppercase tracking-wider mb-2 block">🔫 ยิง Barcode ที่นี่ (คลิกช่องนี้แล้วยิง Scanner)</label>
+<input id="bc-input" type="text" placeholder="คลิกที่นี่ แล้วยิง Scanner..." autocomplete="off"
+  class="w-full bg-slate-800 border-2 border-dashed border-blue-500/50 rounded-xl px-4 py-3 text-white text-center font-mono text-lg placeholder-slate-600 focus:outline-none focus:border-blue-400 focus:bg-slate-700/50"
+  onkeydown="if(event.key==='Enter'){event.preventDefault();onScanInput();}">
+<div class="grid grid-cols-2 gap-3 mt-3">
 <div class="flex items-center gap-2"><span class="text-lg">📋</span><div><div class="text-xs text-slate-500">คำสั่งซื้อ</div><div id="bc-order" class="font-mono text-yellow-400 text-sm truncate">-</div></div></div>
 <div class="flex items-center gap-2"><span class="text-lg">📦</span><div><div class="text-xs text-slate-500">เลขพัสดุ</div><div id="bc-tracking" class="font-mono text-blue-400 text-sm truncate">-</div></div></div>
+</div>
 </div>
 
 <div class="grid grid-cols-2 gap-3">
@@ -276,12 +284,32 @@ function onCamReady(stream) {
 function stopCamera(){if(S.stream)S.stream.getTracks().forEach(function(t){t.stop();});S.stream=null;}
 
 // ═══════════════════════════════════════
-// BARCODE SCANNER
+// BARCODE SCANNER — ทำงาน 2 แบบ:
+// 1. ยิงลงช่อง input โดยตรง (แนะนำ)
+// 2. ยิงจาก keyboard event (fallback)
 // ═══════════════════════════════════════
+function onScanInput() {
+  var inp = el('bc-input');
+  var code = inp.value.trim();
+  if (code.length >= 3) {
+    handleBarcode(code);
+  }
+  inp.value = '';
+  inp.focus();
+}
+
 function setupBarcode() {
+  // Auto-focus ช่อง scanner
+  var inp = el('bc-input');
+  if (inp) inp.focus();
+
+  // Fallback: ดัก keydown สำหรับ scanner ที่ยิงไม่เข้า input
   var buf='',timer=null;
   document.addEventListener('keydown',function(e){
     var a=document.activeElement;
+    // ถ้ากำลัง focus ที่ bc-input ปล่อยให้ input จัดการเอง
+    if(a&&a.id==='bc-input') return;
+    // ข้ามถ้าอยู่ใน input/textarea อื่น
     if(a&&a.tagName==='INPUT'&&['text','password','email','search'].indexOf(a.type)!==-1)return;
     if(a&&a.tagName==='TEXTAREA')return;
     if(e.key==='Enter'){e.preventDefault();if(buf.length>=3)handleBarcode(buf.trim());buf='';clearTimeout(timer);}
@@ -299,6 +327,9 @@ function handleBarcode(code) {
     el('bc-tracking').textContent=code;
     toast('📦 เลขพัสดุ: '+code); stopRecording();
   }
+  // Focus กลับที่ช่อง scanner
+  var inp = el('bc-input');
+  if (inp) { inp.value = ''; inp.focus(); }
 }
 
 // ═══════════════════════════════════════
@@ -397,6 +428,7 @@ function uploadDone(driveData,info,dur,end,prod){
       S.uploading=false;S.orderNumber=null;S.trackingNumber=null;
       el('bc-order').textContent='-';el('bc-tracking').textContent='-';
       el('ocr-box').classList.add('hidden');el('ocr-text').value='';
+      var inp=el('bc-input');if(inp){inp.value='';inp.focus();}
     },1200);
   });
 }
@@ -409,12 +441,18 @@ function captureLabel() {
   var vid=el('videoEl'),cvs=el('ocr-canvas');
   cvs.width=vid.videoWidth||640;cvs.height=vid.videoHeight||480;
   cvs.getContext('2d').drawImage(vid,0,0,cvs.width,cvs.height);
-  el('ocr-box').classList.remove('hidden');el('ocr-text').value='กำลังอ่าน...';
-  if(typeof Tesseract!=='undefined'){
-    Tesseract.recognize(cvs,'tha+eng').then(function(r){
-      el('ocr-text').value=(r.data&&r.data.text)?r.data.text.trim():'(ไม่พบข้อความ)';S.ocrBusy=false;
-    }).catch(function(){el('ocr-text').value='(OCR ไม่พร้อม)';S.ocrBusy=false;});
-  } else { el('ocr-text').value='(ไม่มี Tesseract.js)';S.ocrBusy=false; }
+  el('ocr-box').classList.remove('hidden');el('ocr-text').value='กำลังอ่าน OCR...';
+  Tesseract.recognize(cvs,'tha+eng',{
+    logger:function(m){if(m.status==='recognizing text'){
+      var pct=Math.round((m.progress||0)*100);
+      el('ocr-text').value='กำลังอ่าน... '+pct+'%';
+    }}
+  }).then(function(r){
+    el('ocr-text').value=(r.data&&r.data.text)?r.data.text.trim():'(ไม่พบข้อความ)';
+    S.ocrBusy=false;
+  }).catch(function(e){
+    el('ocr-text').value='(OCR ล้มเหลว: '+e.message+')';S.ocrBusy=false;
+  });
 }
 
 // ═══════════════════════════════════════
