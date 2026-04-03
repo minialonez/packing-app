@@ -63,12 +63,12 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="flex-1 p-4 max-w-6xl mx-auto w-full space-y-3">
 
 <!-- ROW 1: Camera (ซ้าย) + Info (ขวา) -->
-<div class="grid grid-cols-1 lg:grid-cols-5 gap-3">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
 
-<!-- LEFT: Camera (3/5 = 60%) -->
-<div class="lg:col-span-3">
-<div class="relative bg-slate-950 rounded-2xl overflow-hidden border border-slate-800" style="min-height:380px">
-<video id="videoEl" autoplay muted playsinline class="w-full h-full object-cover" style="min-height:380px"></video>
+<!-- LEFT: Camera (2/3 = 67%) -->
+<div class="lg:col-span-2">
+<div class="relative bg-slate-950 rounded-2xl overflow-hidden border border-slate-800" style="min-height:480px">
+<video id="videoEl" autoplay muted playsinline class="w-full h-full object-cover" style="min-height:480px"></video>
 <div id="cam-status" class="absolute top-3 right-3 bg-black/70 backdrop-blur px-3 py-1 rounded-full text-xs">
 <span id="cam-status-text" class="text-yellow-400">กดปุ่มเปิดกล้อง</span></div>
 <div id="rec-badge" class="hidden absolute top-3 left-3 flex items-center gap-1.5 bg-black/70 backdrop-blur px-3 py-1 rounded-full">
@@ -82,22 +82,20 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 </div></div>
 </div>
 
-<!-- RIGHT: Status + Info (2/5 = 40%) -->
-<div class="lg:col-span-2 space-y-3">
+<!-- RIGHT: Info panel (1/3 = 33%) -->
+<div class="lg:col-span-1 space-y-3">
 
-<!-- Status -->
-<div class="grad-card rounded-2xl p-4 text-center">
-<div class="flex items-center justify-center gap-2">
-<span id="status-icon" class="text-2xl">⏸️</span>
-<div>
+<!-- Status (เล็กลง เท่าช่อง barcode) -->
+<div class="grad-card rounded-2xl p-3 flex items-center gap-3">
+<span id="status-icon" class="text-xl">⏸️</span>
+<div class="flex-1 min-w-0">
 <div id="status-text" class="font-bold text-sm text-slate-200">พร้อมบันทึก</div>
 <div id="status-sub" class="text-slate-500 text-xs">ยิง Barcode คำสั่งซื้อเพื่อเริ่ม</div>
 </div>
 </div>
-</div>
 
 <!-- Info -->
-<div class="grad-card rounded-2xl p-4 grid grid-cols-2 gap-3 text-sm">
+<div class="grad-card rounded-2xl p-3 grid grid-cols-2 gap-2 text-sm">
 <div><div class="text-slate-500 text-xs">เวลาเริ่ม</div><div id="info-start" class="font-mono mt-0.5">-</div></div>
 <div><div class="text-slate-500 text-xs">เวลาหยุด</div><div id="info-end" class="font-mono mt-0.5">-</div></div>
 <div><div class="text-slate-500 text-xs">ระยะเวลา</div><div id="info-dur" class="font-mono text-emerald-400 mt-0.5">-</div></div>
@@ -105,26 +103,27 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 </div>
 
 <!-- Order/Tracking display -->
-<div class="grad-card rounded-2xl p-4 grid grid-cols-2 gap-3">
+<div class="grad-card rounded-2xl p-3 grid grid-cols-2 gap-2">
 <div class="flex items-center gap-2"><span class="text-lg">📋</span><div><div class="text-xs text-slate-500">คำสั่งซื้อ</div><div id="bc-order" class="font-mono text-yellow-400 text-sm truncate">-</div></div></div>
 <div class="flex items-center gap-2"><span class="text-lg">📦</span><div><div class="text-xs text-slate-500">เลขพัสดุ</div><div id="bc-tracking" class="font-mono text-blue-400 text-sm truncate">-</div></div></div>
 </div>
 
-<!-- Start/Stop -->
-<div class="grid grid-cols-2 gap-3">
+<!-- Start/Stop/Cancel -->
+<div class="grid grid-cols-3 gap-2">
 <button id="btn-start" onclick="startRecordingManual()" class="bg-emerald-700 hover:bg-emerald-600 font-bold py-3 rounded-2xl text-sm">▶ เริ่มอัด</button>
 <button id="btn-stop" onclick="stopRecordingManual()" disabled class="bg-slate-700 text-slate-500 font-bold py-3 rounded-2xl text-sm cursor-not-allowed">⏹ หยุด</button>
+<button id="btn-cancel" onclick="cancelRecording()" class="hidden bg-red-900/60 hover:bg-red-800 text-red-300 font-bold py-3 rounded-2xl text-sm">✕ ยกเลิก</button>
 </div>
 
 <!-- Upload Progress -->
-<div id="upload-box" class="hidden grad-card rounded-2xl p-4">
-<div class="text-xs text-slate-400 mb-3">☁️ กำลังบันทึกขึ้น Drive</div>
+<div id="upload-box" class="hidden grad-card rounded-2xl p-3">
+<div class="text-xs text-slate-400 mb-2">☁️ กำลังบันทึกขึ้น Drive</div>
 <div class="bg-slate-700 rounded-full h-2 mb-2 overflow-hidden"><div id="upload-bar" class="bg-blue-500 h-2 rounded-full transition-all" style="width:0%"></div></div>
 <div id="upload-label" class="text-xs text-slate-400">เตรียมอัปโหลด...</div>
 </div>
 
 <!-- Success -->
-<div id="success-box" class="hidden rounded-2xl p-4 bg-emerald-950/60 border border-emerald-700/40">
+<div id="success-box" class="hidden rounded-2xl p-3 bg-emerald-950/60 border border-emerald-700/40">
 <div class="text-xs text-emerald-400 mb-2">✅ บันทึกสำเร็จ!</div>
 <div id="success-info" class="text-xs text-slate-300 leading-relaxed"></div>
 <a id="success-link" href="#" target="_blank" class="inline-block mt-2 text-blue-400 text-xs underline">▶ ดูวิดีโอ</a>
@@ -134,7 +133,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 </div>
 
 <!-- ROW 2: Scanner Input (เต็มความกว้าง) -->
-<div class="grad-card rounded-2xl p-4">
+<div class="grad-card rounded-2xl p-3">
 <label class="text-xs text-slate-400 uppercase tracking-wider mb-2 block">🔫 ยิง Barcode ที่นี่ (คลิกช่องนี้แล้วยิง Scanner)</label>
 <input id="bc-input" type="text" placeholder="คลิกที่นี่ แล้วยิง Scanner..." autocomplete="off"
   class="w-full bg-slate-800 border-2 border-dashed border-blue-500/50 rounded-xl px-4 py-3 text-white text-center font-mono text-lg placeholder-slate-600 focus:outline-none focus:border-blue-400 focus:bg-slate-700/50"
@@ -435,6 +434,21 @@ function startRecording() {
 
 function stopRecording(){if(!S.recorder||!S.recording)return;S.recorder.stop();S.recording=false;clearInterval(S.timerIv);setRecUI(false);}
 
+function cancelRecording(){
+  if(S.recording){
+    // หยุด recorder โดยไม่บันทึก
+    S.recorder.onstop=null; // ยกเลิก callback onRecordStop
+    if(S.recorder.state!=='inactive') S.recorder.stop();
+    S.recording=false;clearInterval(S.timerIv);
+  }
+  S.chunks=[];S.orderNumber=null;S.trackingNumber=null;S.t0=null;
+  el('bc-order').textContent='-';el('bc-tracking').textContent='-';
+  el('info-start').textContent='-';el('info-end').textContent='-';el('info-dur').textContent='-';
+  setRecUI(false);
+  toast('🚫 ยกเลิกการบันทึกแล้ว');
+  var inp=el('bc-input');if(inp){inp.value='';inp.focus();}
+}
+
 function onRecordStop() {
   var end=new Date(),dur=Math.round((end-S.t0)/1000);
   var mime=S.recorder.mimeType,ext=mime.indexOf('mp4')!==-1?'.mp4':'.webm';
@@ -676,12 +690,14 @@ function doManualCleanup(){
 // UI HELPERS
 // ═══════════════════════════════════════
 function setRecUI(rec){
-  if(rec){el('status-icon').textContent='🔴';el('status-text').textContent='กำลังบันทึก...';el('status-text').className='font-bold text-base text-red-400';
-    el('status-sub').textContent='ยิง Barcode เลขพัสดุเพื่อหยุด';el('btn-start').disabled=true;el('btn-start').className='bg-slate-700 text-slate-500 font-bold py-4 rounded-2xl text-sm cursor-not-allowed';
-    el('btn-stop').disabled=false;el('btn-stop').className='bg-red-600 hover:bg-red-500 font-bold py-4 rounded-2xl text-sm';el('rec-badge').classList.remove('hidden');el('success-box').classList.add('hidden');
-  }else{el('status-icon').textContent='⏸️';el('status-text').textContent='พร้อมบันทึก';el('status-text').className='font-bold text-base text-slate-200';
-    el('status-sub').textContent='ยิง Barcode คำสั่งซื้อเพื่อเริ่ม หรือกดปุ่มด้านล่าง';el('btn-start').disabled=false;el('btn-start').className='bg-emerald-700 hover:bg-emerald-600 font-bold py-4 rounded-2xl text-sm';
-    el('btn-stop').disabled=true;el('btn-stop').className='bg-slate-700 text-slate-500 font-bold py-4 rounded-2xl text-sm cursor-not-allowed';el('rec-badge').classList.add('hidden');}
+  if(rec){el('status-icon').textContent='🔴';el('status-text').textContent='กำลังบันทึก...';el('status-text').className='font-bold text-sm text-red-400';
+    el('status-sub').textContent='ยิง Barcode เลขพัสดุเพื่อหยุด';el('btn-start').disabled=true;el('btn-start').className='bg-slate-700 text-slate-500 font-bold py-3 rounded-2xl text-sm cursor-not-allowed';
+    el('btn-stop').disabled=false;el('btn-stop').className='bg-red-600 hover:bg-red-500 font-bold py-3 rounded-2xl text-sm';el('rec-badge').classList.remove('hidden');el('success-box').classList.add('hidden');
+    el('btn-cancel').classList.remove('hidden');
+  }else{el('status-icon').textContent='⏸️';el('status-text').textContent='พร้อมบันทึก';el('status-text').className='font-bold text-sm text-slate-200';
+    el('status-sub').textContent='ยิง Barcode คำสั่งซื้อเพื่อเริ่ม';el('btn-start').disabled=false;el('btn-start').className='bg-emerald-700 hover:bg-emerald-600 font-bold py-3 rounded-2xl text-sm';
+    el('btn-stop').disabled=true;el('btn-stop').className='bg-slate-700 text-slate-500 font-bold py-3 rounded-2xl text-sm cursor-not-allowed';el('rec-badge').classList.add('hidden');
+    el('btn-cancel').classList.add('hidden');}
 }
 function startTimer(){clearInterval(S.timerIv);S.timerIv=setInterval(function(){if(!S.t0)return;var s=Math.floor((new Date()-S.t0)/1000);el('rec-timer').textContent=pad(Math.floor(s/60))+':'+pad(s%60);},1000);}
 function setUpload(show,pct,label){el('upload-box').classList.toggle('hidden',!show);if(show){el('upload-bar').style.width=pct+'%';el('upload-label').textContent=label;}}
