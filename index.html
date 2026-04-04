@@ -144,20 +144,41 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 
 <!-- DASHBOARD -->
 <div id="screen-dashboard" class="screen min-h-screen flex flex-col">
-<nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center justify-between flex-wrap gap-2">
+<nav class="bg-slate-900 border-b border-slate-800">
+<!-- Row 1: Title -->
+<div class="px-5 py-3 flex items-center justify-between">
 <div class="flex items-center gap-3">
 <button onclick="showScreen('record')" class="text-slate-400 hover:text-white text-sm">← กลับ</button>
 <span class="font-bold text-sm">📊 รายงาน</span>
 <span id="dash-scope" class="text-xs bg-slate-800 px-3 py-1 rounded-full text-slate-400"></span>
 </div>
-<div class="flex items-center gap-2 flex-wrap">
-<select id="dash-filter" class="hidden bg-slate-800 border border-slate-700 text-white text-xs rounded-lg px-2 py-1" onchange="loadStats(document.querySelector('.period-btn.active').dataset.p)">
-<option value="">👥 ทุกคน</option>
+</div>
+<!-- Row 2: Filters -->
+<div class="px-5 py-2 bg-slate-950/50 flex items-center gap-3 flex-wrap border-t border-slate-800/50">
+<!-- ผู้แพค -->
+<div class="flex items-center gap-2">
+<span class="text-xs text-slate-500">👤 ผู้แพค:</span>
+<select id="dash-filter" class="bg-slate-800 border border-slate-700 text-white text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-500 min-w-[120px]" onchange="doLoadStats()">
+<option value="">ทุกคน</option>
 </select>
-<button class="period-btn active" onclick="loadStats('today')" data-p="today">วันนี้</button>
-<button class="period-btn" onclick="loadStats('week')" data-p="week">7 วัน</button>
-<button class="period-btn" onclick="loadStats('month')" data-p="month">30 วัน</button>
-</div></nav>
+</div>
+<span class="text-slate-700">|</span>
+<!-- ช่วงเวลาด่วน -->
+<div class="flex items-center gap-1">
+<button class="period-btn active" onclick="setPeriod('today')" data-p="today">วันนี้</button>
+<button class="period-btn" onclick="setPeriod('week')" data-p="week">7 วัน</button>
+<button class="period-btn" onclick="setPeriod('month')" data-p="month">30 วัน</button>
+</div>
+<span class="text-slate-700">|</span>
+<!-- เลือกวันเอง -->
+<div class="flex items-center gap-2">
+<span class="text-xs text-slate-500">📅 ตั้งแต่:</span>
+<input id="date-from" type="date" class="bg-slate-800 border border-slate-700 text-white text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-500" onchange="setPeriod('custom')">
+<span class="text-xs text-slate-500">ถึง:</span>
+<input id="date-to" type="date" class="bg-slate-800 border border-slate-700 text-white text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-500" onchange="setPeriod('custom')">
+</div>
+</div>
+</nav>
 <div class="flex-1 overflow-y-auto p-4 max-w-6xl mx-auto w-full space-y-4">
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
 <div class="grad-card rounded-2xl p-5 text-center"><div class="text-3xl font-black text-blue-400" id="kpi-total">-</div><div class="text-slate-400 text-xs mt-1">ครั้งทั้งหมด</div></div>
@@ -279,7 +300,9 @@ function showScreen(name, fadeMsg) {
 
     if (name==='dashboard') {
       setupDashboard();
-      loadStats('today');
+      // admin default วันนี้, พนักงาน default 30 วัน (เห็นย้อนหลังทันที)
+      var defaultPeriod = (S.user && S.user.role === 'admin') ? 'today' : 'month';
+      loadStats(defaultPeriod);
     }
     if (name==='admin') {
       // ป้องกัน packer เข้าหน้า admin
@@ -389,9 +412,24 @@ function setupBarcode() {
 
 function handleBarcode(code) {
   if(!S.recording){
-    S.orderNumber=code;S.trackingNumber=null;
-    el('bc-order').textContent=code;el('bc-tracking').textContent='รอยิง...';
-    toast('📋 คำสั่งซื้อ: '+code); startRecording();
+    // ตรวจสอบว่าเลขคำสั่งซื้อนี้เคยใช้ไปแล้วหรือไม่
+    toast('🔍 ตรวจสอบคำสั่งซื้อ...');
+    gRun('checkOrderExists',{orderNumber:code}).then(function(r){
+      if(r && r.exists){
+        toast('⚠️ คำสั่งซื้อ "'+code+'" เคยบันทึกไปแล้ว! ยิงใหม่',5000);
+        var inp=el('bc-input');if(inp){inp.value='';inp.focus();}
+        return;
+      }
+      // ไม่ซ้ำ → เริ่มอัด
+      S.orderNumber=code;S.trackingNumber=null;
+      el('bc-order').textContent=code;el('bc-tracking').textContent='รอยิง...';
+      toast('📋 คำสั่งซื้อ: '+code); startRecording();
+    }).catch(function(){
+      // ถ้าเช็คไม่ได้ ให้อัดต่อไปก่อน (ไม่บล็อก)
+      S.orderNumber=code;S.trackingNumber=null;
+      el('bc-order').textContent=code;el('bc-tracking').textContent='รอยิง...';
+      toast('📋 คำสั่งซื้อ: '+code); startRecording();
+    });
   } else {
     S.trackingNumber=code;
     el('bc-tracking').textContent=code;
@@ -531,41 +569,78 @@ function setupDashboard() {
   var scope = el('dash-scope');
   var filter = el('dash-filter');
 
+  initDatePickers();
+
   if (isAdmin) {
     scope.textContent = '🔓 ดูได้ทุกคน';
     scope.className = 'text-xs bg-purple-900/60 px-3 py-1 rounded-full text-purple-300';
-    filter.classList.remove('hidden');
+    // โหลดรายชื่อพนักงานใส่ dropdown
     gRun('getUsers',{}).then(function(r) {
       if (!r || !r.success) return;
-      var opts = '<option value="">👥 ทุกคน</option>';
+      var opts = '<option value="">ทุกคน</option>';
       r.users.forEach(function(u) {
-        if (u.active) opts += '<option value="' + u.displayName + '">👤 ' + u.displayName + '</option>';
+        if (u.active) opts += '<option value="' + u.displayName + '">' + u.displayName + ' (@' + u.username + ')</option>';
       });
       filter.innerHTML = opts;
     });
   } else {
     scope.textContent = '🔒 ข้อมูลของ: ' + (S.user ? S.user.displayName : '');
     scope.className = 'text-xs bg-blue-900/60 px-3 py-1 rounded-full text-blue-300';
-    filter.classList.add('hidden');
+    // พนักงานดูได้แค่ตัวเอง — ล็อค dropdown
+    filter.innerHTML = '<option value="' + (S.user ? S.user.displayName : '') + '">' + (S.user ? S.user.displayName : '') + '</option>';
+    filter.disabled = true;
+    filter.classList.add('opacity-50');
   }
 }
 
-function loadStats(period) {
-  document.querySelectorAll('.period-btn').forEach(function(b){b.classList.toggle('active',b.dataset.p===period);});
-  showOverlay('กำลังโหลดรายงาน...');
-  var params = {period:period};
+function setPeriod(p) {
+  document.querySelectorAll('.period-btn').forEach(function(b){b.classList.toggle('active',b.dataset.p===p);});
+  var today = new Date();
+  var df = el('date-from'), dt = el('date-to');
+  var toStr = function(d){return d.toISOString().split('T')[0];};
 
-  if (S.user && S.user.role === 'admin') {
-    var filterVal = el('dash-filter') ? el('dash-filter').value : '';
-    if (filterVal) params.packer = filterVal;
-  } else {
-    params.packer = S.user ? S.user.displayName : '';
+  if(p==='today'){
+    df.value=toStr(today); dt.value=toStr(today);
+  } else if(p==='week'){
+    var w=new Date(today); w.setDate(w.getDate()-7);
+    df.value=toStr(w); dt.value=toStr(today);
+  } else if(p==='month'){
+    var m=new Date(today); m.setDate(m.getDate()-30);
+    df.value=toStr(m); dt.value=toStr(today);
   }
+  // custom = ใช้ค่าที่ user เลือกเอง
+  doLoadStats();
+}
+
+function doLoadStats() {
+  showOverlay('กำลังโหลดรายงาน...');
+  var params = {};
+  var df = v('date-from'), dt = v('date-to');
+  if(df) params.dateFrom = df;
+  if(dt) params.dateTo = dt;
+  if(!df && !dt) params.period = 'today';
+
+  // ใช้ค่าจาก dropdown (admin เลือกได้ / พนักงานล็อคเป็นตัวเอง)
+  var filterVal = el('dash-filter') ? el('dash-filter').value : '';
+  if (filterVal) params.packer = filterVal;
 
   gRun('getPackingStats',params).then(function(r){
     hideOverlay();if(!r||!r.success){toast('⚠️ '+(r&&r.message||'โหลดไม่ได้'));return;}
     try{renderStats(r);}catch(e){toast('❌ '+e.message);}
   }).catch(function(e){hideOverlay();toast('❌ '+e.message);});
+}
+
+// ใช้ตอน showScreen('dashboard') เรียก
+function loadStats(period) { setPeriod(period || 'today'); }
+
+// ตั้งค่า date picker limits (30 วันย้อนหลัง ถึง วันนี้)
+function initDatePickers() {
+  var today = new Date();
+  var min = new Date(today); min.setDate(min.getDate()-30);
+  var toStr = function(d){return d.toISOString().split('T')[0];};
+  var df = el('date-from'), dt = el('date-to');
+  if(df){df.min=toStr(min);df.max=toStr(today);df.value=toStr(today);}
+  if(dt){dt.min=toStr(min);dt.max=toStr(today);dt.value=toStr(today);}
 }
 
 function renderStats(d) {
