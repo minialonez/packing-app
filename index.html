@@ -273,7 +273,7 @@ function gRun(action, params) {
 // STATE
 // ═══════════════════════════════════════
 var S = { user:null, recording:false, recorder:null, chunks:[], stream:null, t0:null, timerIv:null,
-  orderNumber:null, trackingNumber:null, charts:{}, uploading:false };
+  orderNumber:null, trackingNumber:null, charts:{}, uploading:false, usedOrders:{} };
 
 // ═══════════════════════════════════════
 // SCREEN ROUTER
@@ -338,7 +338,7 @@ function doLogin() {
     if(r.role==='admin')el('admin-nav-btn').classList.remove('hidden');
     showScreen('record', 'ยินดีต้อนรับ ' + (r.displayName || r.username));
     setupBarcode();
-    // เปิดกล้องอัตโนมัติหลัง login
+    loadUsedOrders(); // โหลดรายการออเดอร์เก่ามา cache
     setTimeout(function(){ startCamera(); toast('✅ เข้าสู่ระบบสำเร็จ'); focusScan(); }, 600);
   }).catch(function(e){hideOverlay();showErr('login-err','❌ '+(e.message||e));});
 }
@@ -414,37 +414,36 @@ function setupBarcode() {
 function handleBarcode(code) {
   if(!S.recording){
     // ═══ ยิงครั้งแรก = เลขคำสั่งซื้อ ═══
-    // เช็คว่าเคยแพคไปแล้วหรือไม่
-    toast('🔍 ตรวจสอบ...');
-    gRun('checkOrderExists',{orderNumber:code}).then(function(r){
-      if(r && r.exists){
-        toast('🚫 ยิงซ้ำ! ออเดอร์ "'+code+'" แพคไปแล้วนะ',5000);
-        focusScan();
-        return;
-      }
-      // ไม่ซ้ำ → เริ่มอัด
-      S.orderNumber=code;S.trackingNumber=null;
-      el('bc-order').textContent=code;el('bc-tracking').textContent='รอยิงซ้ำ...';
-      toast('📋 คำสั่งซื้อ: '+code+' — ยิงซ้ำอีกครั้งเพื่อยืนยัน');
-      startRecording();
-    }).catch(function(){
-      // เช็คไม่ได้ → อัดต่อไปก่อน
-      S.orderNumber=code;S.trackingNumber=null;
-      el('bc-order').textContent=code;el('bc-tracking').textContent='รอยิงซ้ำ...';
-      toast('📋 คำสั่งซื้อ: '+code); startRecording();
-    });
+    // เช็คจาก cache ทันที (ไม่ต้องรอ server)
+    if(S.usedOrders[code]){
+      toast('🚫 ยิงซ้ำ! ออเดอร์ "'+code+'" แพคไปแล้วนะ',5000);
+      focusScan(); return;
+    }
+    S.orderNumber=code;S.trackingNumber=null;
+    el('bc-order').textContent=code;el('bc-tracking').textContent='รอยิงซ้ำ...';
+    toast('📋 คำสั่งซื้อ: '+code+' — ยิงซ้ำอีกครั้งเพื่อยืนยัน');
+    startRecording();
   } else {
     // ═══ ยิงครั้งที่สอง = ต้องซ้ำกับครั้งแรก ═══
     if(code !== S.orderNumber){
       toast('❌ ยิงผิดพลาด! ต้องยิงเลขเดิม "'+S.orderNumber+'"',5000);
-      focusScan();
-      return;
+      focusScan(); return;
     }
     S.trackingNumber=code;
     el('bc-tracking').textContent=code;
     toast('✅ ยืนยัน: '+code+' — หยุดบันทึก'); stopRecording();
   }
   focusScan();
+}
+
+// โหลดรายการออเดอร์ที่เคยแพคแล้ว (ครั้งเดียวตอน login)
+function loadUsedOrders(){
+  gRun('getAllOrders',{}).then(function(r){
+    if(r&&r.success&&r.orders){
+      S.usedOrders={};
+      r.orders.forEach(function(o){S.usedOrders[o]=true;});
+    }
+  }).catch(function(){});
 }
 
 function focusScan(){var inp=el('bc-input');if(inp){inp.value='';inp.focus();}}
@@ -562,6 +561,8 @@ function uploadDone(driveData,info,dur,end,prod){
   return gRun('savePackingLog',logData).then(function(){
     setUpload(true,100,'✅ สำเร็จ!');
     setTimeout(function(){setUpload(false);showSuccess(logData);
+      // เพิ่มเข้า cache ป้องกันยิงซ้ำ
+      if(S.orderNumber) S.usedOrders[S.orderNumber]=true;
       S.uploading=false;S.orderNumber=null;S.trackingNumber=null;
       el('bc-order').textContent='-';el('bc-tracking').textContent='-';
       
