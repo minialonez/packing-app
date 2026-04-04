@@ -140,6 +140,30 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
   onkeydown="if(event.key==='Enter'){event.preventDefault();onScanInput();}">
 </div>
 
+<!-- ค้นหา + ดูคลิปย้อนหลัง -->
+<div class="grad-card rounded-2xl p-3">
+<div class="flex items-center gap-2 mb-2">
+<span class="text-sm">🔍</span>
+<input id="search-input" type="text" placeholder="ค้นหาเลขคำสั่งซื้อ / เลขพัสดุ..." autocomplete="off"
+  class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-blue-500"
+  oninput="doSearch()" onkeydown="if(event.key==='Enter')doSearch()">
+<button onclick="doSearch()" class="bg-blue-600 hover:bg-blue-500 text-xs px-3 py-2 rounded-lg font-medium">ค้นหา</button>
+</div>
+<div id="search-results" class="hidden space-y-2 max-h-64 overflow-y-auto"></div>
+</div>
+
+<!-- Video Player Popup -->
+<div id="video-popup" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[55]" onclick="closeVideo()">
+<div class="bg-slate-900 rounded-2xl p-3 w-full max-w-3xl mx-4" onclick="event.stopPropagation()">
+<div class="flex items-center justify-between mb-2">
+<span id="video-title" class="text-sm text-slate-300 font-mono truncate"></span>
+<button onclick="closeVideo()" class="text-slate-400 hover:text-white text-lg px-2">✕</button>
+</div>
+<iframe id="video-frame" src="" class="w-full rounded-xl bg-black" style="height:420px" allow="autoplay" allowfullscreen></iframe>
+<div id="video-info" class="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-400"></div>
+</div>
+</div>
+
 </div></div>
 
 <!-- DASHBOARD -->
@@ -507,6 +531,59 @@ function loadUsedOrders(){
 function focusScan(){var inp=el('bc-input');if(inp){inp.value='';inp.focus();}}
 
 // ═══════════════════════════════════════
+// ค้นหา + ดูคลิปย้อนหลัง (ค้นจาก cache ทันที)
+// ═══════════════════════════════════════
+var searchTimer=null;
+function doSearch(){
+  clearTimeout(searchTimer);
+  searchTimer=setTimeout(function(){
+    var q=v('search-input').toUpperCase();
+    var box=el('search-results');
+    if(!q||q.length<3){box.classList.add('hidden');box.innerHTML='';return;}
+    var results=[];
+    var keys=Object.keys(S.usedOrders);
+    for(var i=0;i<keys.length;i++){
+      if(keys[i].toUpperCase().indexOf(q)!==-1){
+        results.push({order:keys[i],info:S.usedOrders[keys[i]]});
+      }
+      if(results.length>=20)break;
+    }
+    if(!results.length){
+      box.innerHTML='<div class="text-xs text-slate-500 text-center py-3">ไม่พบข้อมูล</div>';
+      box.classList.remove('hidden');return;
+    }
+    var h='';
+    results.forEach(function(r){
+      var info=r.info||{};
+      var hasVideo=info.fileId?true:false;
+      h+='<div class="flex items-center justify-between bg-slate-800/80 rounded-xl px-3 py-2">'
+        +'<div class="flex-1 min-w-0">'
+        +'<div class="font-mono text-yellow-400 text-sm truncate">'+r.order+'</div>'
+        +'<div class="text-xs text-slate-500">'+( info.date||'-')+' '+( info.time||'')+' · '+(info.packer||'-')
+        +' · '+fmtDur(info.duration)+'</div>'
+        +'</div>'
+        +(hasVideo?'<button onclick="playVideo(\''+info.fileId+'\',\''+r.order+'\',\''+(info.packer||'')+'\',\''+(info.date||'')+'\',\''+(info.time||'')+'\')" class="ml-2 bg-blue-600 hover:bg-blue-500 text-xs px-3 py-1.5 rounded-lg flex-shrink-0">▶ ดูคลิป</button>':'<span class="ml-2 text-xs text-slate-600">ไม่มีคลิป</span>')
+        +'</div>';
+    });
+    box.innerHTML=h;
+    box.classList.remove('hidden');
+  },200);
+}
+
+function playVideo(fileId,order,packer,date,time){
+  el('video-title').textContent=order;
+  el('video-frame').src='https://drive.google.com/file/d/'+fileId+'/preview';
+  el('video-info').innerHTML='<div>📋 '+order+'</div><div>👤 '+packer+'</div><div>📅 '+date+' '+time+'</div>';
+  el('video-popup').classList.remove('hidden');
+}
+
+function closeVideo(){
+  el('video-popup').classList.add('hidden');
+  el('video-frame').src='';
+  focusScan();
+}
+
+// ═══════════════════════════════════════
 // RECORDING
 // ═══════════════════════════════════════
 function startRecordingManual(){
@@ -736,8 +813,8 @@ function renderStats(d) {
   var rows=logs.slice().reverse().slice(0,50),th='';
   if(!rows.length)th='<tr><td colspan="7" class="py-8 text-center text-slate-500">ไม่มีข้อมูล</td></tr>';
   else rows.forEach(function(l){
-    var vl=l.fileURL?'<a href="'+l.fileURL+'" target="_blank" class="text-blue-400 hover:underline">▶ ดู</a>':'−';
-    if(l.fileId)vl+=' <a href="https://drive.google.com/uc?export=download&id='+l.fileId+'" target="_blank" class="text-emerald-400 hover:underline">⬇</a>';
+    var vl='-';
+    if(l.fileId){vl='<button onclick="playVideo(\''+l.fileId+'\',\''+(l.orderNumber||'-')+'\',\''+(l.packer||'')+'\',\''+(l.date||'')+'\',\''+(l.startTime||'')+'\')" class="text-blue-400 hover:underline text-xs">▶ ดูคลิป</button>';}
     th+='<tr class="border-b border-slate-800"><td class="py-2 pr-3 text-slate-400">'+(l.date||'-')+'</td><td class="py-2 pr-3 font-mono">'+(l.startTime||'-')+'</td><td class="py-2 pr-3">'+(l.packer||'-')+'</td><td class="py-2 pr-3 font-mono text-emerald-400">'+fmtDur(l.durationSec)+'</td><td class="py-2 pr-3 text-yellow-400 font-mono">'+(l.orderNumber||'-')+'</td><td class="py-2 pr-3 text-blue-400 font-mono">'+(l.trackingNumber||'-')+'</td><td class="py-2 whitespace-nowrap">'+vl+'</td></tr>';
   });
   el('logs-tbody').innerHTML=th;
