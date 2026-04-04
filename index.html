@@ -257,9 +257,17 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="bg-slate-900 rounded-2xl p-3 w-full max-w-3xl mx-4" onclick="event.stopPropagation()">
 <div class="flex items-center justify-between mb-2">
 <span id="video-title" class="text-sm text-slate-300 font-mono truncate"></span>
+<div class="flex items-center gap-2">
+<a id="video-drive-link" href="#" target="_blank" class="text-xs text-slate-500 hover:text-blue-400">เปิดใน Drive</a>
 <button onclick="closeVideo()" class="text-slate-400 hover:text-white text-lg px-2">✕</button>
 </div>
-<iframe id="video-frame" src="" class="w-full rounded-xl bg-black" style="height:420px" allow="autoplay" allowfullscreen></iframe>
+</div>
+<video id="video-player" controls playsinline class="w-full rounded-xl bg-black" style="max-height:480px">
+</video>
+<div id="video-loading" class="hidden text-center py-8">
+<div class="text-2xl spin mb-2">⚙️</div>
+<p class="text-slate-400 text-sm">กำลังโหลดวิดีโอ...</p>
+</div>
 <div id="video-info" class="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-400"></div>
 </div>
 </div>
@@ -572,14 +580,33 @@ function doSearch(){
 
 function playVideo(fileId,order,packer,date,time){
   el('video-title').textContent=order;
-  el('video-frame').src='https://drive.google.com/file/d/'+fileId+'/preview';
   el('video-info').innerHTML='<div>📋 '+order+'</div><div>👤 '+packer+'</div><div>📅 '+date+' '+time+'</div>';
+  el('video-drive-link').href='https://drive.google.com/file/d/'+fileId+'/view';
+
+  var player=el('video-player');
+  var loading=el('video-loading');
+  player.classList.add('hidden'); loading.classList.remove('hidden');
+
+  // ใช้ URL ตรง — เร็วกว่า iframe มาก
+  player.src='https://drive.google.com/uc?export=download&id='+fileId;
+  player.oncanplay=function(){
+    loading.classList.add('hidden');
+    player.classList.remove('hidden');
+  };
+  player.onerror=function(){
+    // fallback: เปิดใน Drive ถ้าเล่นตรงไม่ได้
+    loading.innerHTML='<p class="text-slate-400 text-sm mb-3">ไม่สามารถเล่นตรงได้</p>'
+      +'<a href="https://drive.google.com/file/d/'+fileId+'/preview" target="_blank" class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg">เปิดใน Google Drive</a>';
+    loading.classList.remove('hidden');
+  };
+
   el('video-popup').classList.remove('hidden');
 }
 
 function closeVideo(){
   el('video-popup').classList.add('hidden');
-  el('video-frame').src='';
+  var player=el('video-player');
+  player.pause(); player.src=''; player.classList.add('hidden');
   focusScan();
 }
 
