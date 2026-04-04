@@ -152,18 +152,6 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div id="search-results" class="hidden space-y-2 max-h-64 overflow-y-auto"></div>
 </div>
 
-<!-- Video Player Popup -->
-<div id="video-popup" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[55]" onclick="closeVideo()">
-<div class="bg-slate-900 rounded-2xl p-3 w-full max-w-3xl mx-4" onclick="event.stopPropagation()">
-<div class="flex items-center justify-between mb-2">
-<span id="video-title" class="text-sm text-slate-300 font-mono truncate"></span>
-<button onclick="closeVideo()" class="text-slate-400 hover:text-white text-lg px-2">✕</button>
-</div>
-<iframe id="video-frame" src="" class="w-full rounded-xl bg-black" style="height:420px" allow="autoplay" allowfullscreen></iframe>
-<div id="video-info" class="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-400"></div>
-</div>
-</div>
-
 </div></div>
 
 <!-- DASHBOARD -->
@@ -264,6 +252,18 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 </div>
 
 <!-- OVERLAY -->
+<!-- VIDEO PLAYER POPUP (global — ใช้ได้ทุกหน้า) -->
+<div id="video-popup" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[55]" onclick="closeVideo()">
+<div class="bg-slate-900 rounded-2xl p-3 w-full max-w-3xl mx-4" onclick="event.stopPropagation()">
+<div class="flex items-center justify-between mb-2">
+<span id="video-title" class="text-sm text-slate-300 font-mono truncate"></span>
+<button onclick="closeVideo()" class="text-slate-400 hover:text-white text-lg px-2">✕</button>
+</div>
+<iframe id="video-frame" src="" class="w-full rounded-xl bg-black" style="height:420px" allow="autoplay" allowfullscreen></iframe>
+<div id="video-info" class="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-400"></div>
+</div>
+</div>
+
 <!-- DUPLICATE WARNING POPUP -->
 <div id="dup-popup" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60]" onclick="closeDupPopup()">
 <div class="bg-slate-900 border-2 border-red-500 rounded-3xl p-8 max-w-md mx-4 text-center shadow-2xl" onclick="event.stopPropagation()">
