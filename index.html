@@ -259,16 +259,16 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <span id="video-title" class="text-sm text-slate-300 font-mono truncate"></span>
 <div class="flex items-center gap-2">
 <a id="video-drive-link" href="#" target="_blank" class="text-xs text-slate-500 hover:text-blue-400">เปิดใน Drive</a>
-<a id="video-dl-link" href="#" target="_blank" class="text-xs text-slate-500 hover:text-emerald-400">⬇ ดาวน์โหลด</a>
 <button onclick="closeVideo()" class="text-slate-400 hover:text-white text-lg px-2">✕</button>
 </div>
 </div>
-<div class="relative" style="height:420px">
-<div id="video-loading" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 rounded-xl z-10">
-<div class="text-3xl spin mb-2">⚙️</div>
-<p class="text-slate-400 text-sm">กำลังโหลดวิดีโอ...</p>
+<div class="relative" style="min-height:200px">
+<div id="video-loading" class="flex flex-col items-center justify-center py-12">
+<div class="text-3xl spin mb-3">⚙️</div>
+<p id="video-load-text" class="text-slate-400 text-sm">กำลังโหลดวิดีโอ...</p>
+<div class="w-48 bg-slate-700 rounded-full h-1.5 mt-3"><div id="video-load-bar" class="bg-blue-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
 </div>
-<iframe id="video-frame" src="" class="w-full h-full rounded-xl bg-black" allow="autoplay; encrypted-media" allowfullscreen onload="el('video-loading').classList.add('hidden')"></iframe>
+<video id="video-player" controls playsinline class="hidden w-full rounded-xl bg-black" style="max-height:480px"></video>
 </div>
 <div id="video-info" class="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-400"></div>
 </div>
@@ -580,19 +580,77 @@ function doSearch(){
   },200);
 }
 
+var videoBlobUrl = null; // เก็บ URL ชั่วคราว
+
 function playVideo(fileId,order,packer,date,time){
   el('video-title').textContent=order;
   el('video-info').innerHTML='<div>📋 '+order+'</div><div>👤 '+packer+'</div><div>📅 '+date+' '+time+'</div>';
   el('video-drive-link').href='https://drive.google.com/file/d/'+fileId+'/view';
-  el('video-dl-link').href='https://drive.google.com/uc?export=download&id='+fileId;
+  el('video-player').classList.add('hidden');
   el('video-loading').classList.remove('hidden');
-  el('video-frame').src='https://drive.google.com/file/d/'+fileId+'/preview';
+  el('video-load-text').textContent='กำลังขอ token...';
+  el('video-load-bar').style.width='5%';
   el('video-popup').classList.remove('hidden');
+
+  // ขอ token แล้วดาวน์โหลดไฟล์ตรง
+  gRun('getUploadInfo',{}).then(function(info){
+    if(!info||!info.success||!info.token) throw new Error('ไม่ได้ token');
+    el('video-load-text').textContent='กำลังดาวน์โหลดวิดีโอ...';
+    el('video-load-bar').style.width='15%';
+
+    return fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'?alt=media',{
+      headers:{'Authorization':'Bearer '+info.token}
+    });
+  }).then(function(resp){
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    var total=parseInt(resp.headers.get('Content-Length'))||0;
+    var loaded=0;
+    var reader=resp.body.getReader();
+    var chunks=[];
+
+    function read(){
+      return reader.read().then(function(result){
+        if(result.done){
+          el('video-load-text').textContent='เตรียมเล่น...';
+          el('video-load-bar').style.width='95%';
+          return new Blob(chunks);
+        }
+        chunks.push(result.value);
+        loaded+=result.value.length;
+        if(total){
+          var pct=15+Math.round(loaded/total*80);
+          el('video-load-bar').style.width=pct+'%';
+          el('video-load-text').textContent='ดาวน์โหลด '+(loaded/1024/1024).toFixed(1)+' / '+(total/1024/1024).toFixed(1)+' MB';
+        } else {
+          el('video-load-text').textContent='ดาวน์โหลด '+(loaded/1024/1024).toFixed(1)+' MB...';
+        }
+        return read();
+      });
+    }
+    return read();
+  }).then(function(blob){
+    // สร้าง URL ชั่วคราว → เล่นทันที
+    if(videoBlobUrl) URL.revokeObjectURL(videoBlobUrl);
+    videoBlobUrl=URL.createObjectURL(blob);
+    var player=el('video-player');
+    player.src=videoBlobUrl;
+    player.classList.remove('hidden');
+    el('video-loading').classList.add('hidden');
+    el('video-load-bar').style.width='100%';
+    player.play().catch(function(){});
+  }).catch(function(err){
+    el('video-load-text').textContent='❌ โหลดไม่ได้: '+err.message;
+    el('video-load-bar').style.width='0%';
+    el('video-loading').innerHTML+='<a href="https://drive.google.com/file/d/'+fileId+'/preview" target="_blank" class="mt-3 inline-block bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg">เปิดใน Google Drive แทน</a>';
+  });
 }
 
 function closeVideo(){
   el('video-popup').classList.add('hidden');
-  el('video-frame').src='';
+  var player=el('video-player');
+  player.pause(); player.src='';
+  // ลบไฟล์จากหน่วยความจำ
+  if(videoBlobUrl){URL.revokeObjectURL(videoBlobUrl);videoBlobUrl=null;}
   focusScan();
 }
 
