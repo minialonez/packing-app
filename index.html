@@ -356,24 +356,47 @@ function doLogin() {
   gRun('login',{username:u,password:p}).then(function(r){
     hideOverlay();
     if(!r||!r.success){showErr('login-err',(r&&r.message)||'Login ไม่สำเร็จ');return;}
-    S.user=r;
-    el('nav-packer').textContent=(r.displayName||'')+' · '+(r.role==='admin'?'ผู้ดูแล':'พนักงาน');
-    el('info-packer').textContent=r.displayName||'';
-    if(r.role==='admin')el('admin-nav-btn').classList.remove('hidden');
-    showScreen('record', 'ยินดีต้อนรับ ' + (r.displayName || r.username));
-    setupBarcode();
-    loadUsedOrders(); // โหลดรายการออเดอร์เก่ามา cache
-    setTimeout(function(){ startCamera(); toast('✅ เข้าสู่ระบบสำเร็จ'); focusScan(); }, 600);
+    // จำ login ไว้ใน sessionStorage (refresh ไม่ต้อง login ใหม่)
+    try{sessionStorage.setItem('doby_user',JSON.stringify(r));}catch(e){}
+    enterApp(r, 'ยินดีต้อนรับ ' + (r.displayName || r.username));
   }).catch(function(e){hideOverlay();showErr('login-err','❌ '+(e.message||e));});
+}
+
+// เข้าใช้งานหลัง login (ใช้ทั้ง login ปกติ และ auto-restore)
+function enterApp(r, fadeMsg) {
+  S.user=r;
+  el('nav-packer').textContent=(r.displayName||'')+' · '+(r.role==='admin'?'ผู้ดูแล':'พนักงาน');
+  el('info-packer').textContent=r.displayName||'';
+  if(r.role==='admin')el('admin-nav-btn').classList.remove('hidden');
+  showScreen('record', fadeMsg || '');
+  setupBarcode();
+  loadUsedOrders();
+  setTimeout(function(){ startCamera(); if(fadeMsg)toast('✅ เข้าสู่ระบบสำเร็จ'); focusScan(); }, 600);
 }
 
 function doLogout() {
   if(S.recording){toast('⚠️ หยุดบันทึกก่อนออก');return;}
   stopCamera(); S.user=null;
+  try{sessionStorage.removeItem('doby_user');}catch(e){}
   el('admin-nav-btn').classList.add('hidden');
   showScreen('login', 'ออกจากระบบ...');
   setTimeout(function(){ el('inp-user').value=''; el('inp-pass').value=''; }, 600);
 }
+
+// Auto-restore login หลัง refresh (ไม่ต้อง login ใหม่)
+function autoRestore() {
+  try {
+    var saved = sessionStorage.getItem('doby_user');
+    if (saved) {
+      var r = JSON.parse(saved);
+      if (r && r.success && r.username) {
+        enterApp(r);
+        return;
+      }
+    }
+  } catch(e) {}
+}
+autoRestore();
 
 // ═══════════════════════════════════════
 // CAMERA — ทำงานโดยตรง (ไม่มี iframe!)
