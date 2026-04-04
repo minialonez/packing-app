@@ -240,6 +240,30 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 </div>
 
 <!-- OVERLAY -->
+<!-- DUPLICATE WARNING POPUP -->
+<div id="dup-popup" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60]" onclick="closeDupPopup()">
+<div class="bg-slate-900 border-2 border-red-500 rounded-3xl p-8 max-w-md mx-4 text-center shadow-2xl" onclick="event.stopPropagation()">
+<div class="text-6xl mb-4">🚫</div>
+<div class="text-xl font-bold text-red-400 mb-3">ออเดอร์นี้แพคไปแล้ว!</div>
+<div class="bg-red-950/60 rounded-2xl p-4 mb-4">
+<div class="text-sm text-slate-400 mb-1">เลขออเดอร์</div>
+<div id="dup-order" class="text-lg font-mono text-yellow-400 font-bold">-</div>
+</div>
+<div class="grid grid-cols-2 gap-3 mb-4">
+<div class="bg-slate-800 rounded-xl p-3">
+<div class="text-xs text-slate-500">แพคโดย</div>
+<div id="dup-packer" class="text-sm text-blue-400 font-bold mt-1">-</div>
+</div>
+<div class="bg-slate-800 rounded-xl p-3">
+<div class="text-xs text-slate-500">วันที่</div>
+<div id="dup-date" class="text-sm text-slate-300 font-mono mt-1">-</div>
+</div>
+</div>
+<button onclick="closeDupPopup()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl text-sm">รับทราบ — ยิงออเดอร์ใหม่</button>
+</div>
+</div>
+
+<!-- OVERLAY -->
 <div id="overlay" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
 <div class="grad-card rounded-2xl p-8 text-center shadow-2xl min-w-48"><div class="text-4xl spin mb-3">⚙️</div><div id="overlay-text" class="text-slate-300 text-sm">กำลังโหลด...</div></div></div>
 <div id="toast-container" class="fixed bottom-6 left-1/2 -translate-x-1/2 flex flex-col gap-2 z-50 pointer-events-none"></div>
@@ -414,9 +438,9 @@ function setupBarcode() {
 function handleBarcode(code) {
   if(!S.recording){
     // ═══ ยิงครั้งแรก = เลขคำสั่งซื้อ ═══
-    // เช็คจาก cache ทันที (ไม่ต้องรอ server)
-    if(S.usedOrders[code]){
-      toast('🚫 ยิงซ้ำ! ออเดอร์ "'+code+'" แพคไปแล้วนะ',5000);
+    var existing = S.usedOrders[code];
+    if(existing){
+      showDupPopup(code, existing.packer, existing.date);
       focusScan(); return;
     }
     S.orderNumber=code;S.trackingNumber=null;
@@ -436,12 +460,23 @@ function handleBarcode(code) {
   focusScan();
 }
 
+// Popup แจ้งเตือนซ้ำ
+function showDupPopup(order, packer, date){
+  el('dup-order').textContent=order;
+  el('dup-packer').textContent=packer||'-';
+  el('dup-date').textContent=date||'-';
+  el('dup-popup').classList.remove('hidden');
+}
+function closeDupPopup(){
+  el('dup-popup').classList.add('hidden');
+  focusScan();
+}
+
 // โหลดรายการออเดอร์ที่เคยแพคแล้ว (ครั้งเดียวตอน login)
 function loadUsedOrders(){
   gRun('getAllOrders',{}).then(function(r){
     if(r&&r.success&&r.orders){
-      S.usedOrders={};
-      r.orders.forEach(function(o){S.usedOrders[o]=true;});
+      S.usedOrders=r.orders; // {orderNumber: {packer:'ชื่อ', date:'2026-04-04'}}
     }
   }).catch(function(){});
 }
@@ -561,8 +596,8 @@ function uploadDone(driveData,info,dur,end,prod){
   return gRun('savePackingLog',logData).then(function(){
     setUpload(true,100,'✅ สำเร็จ!');
     setTimeout(function(){setUpload(false);showSuccess(logData);
-      // เพิ่มเข้า cache ป้องกันยิงซ้ำ
-      if(S.orderNumber) S.usedOrders[S.orderNumber]=true;
+      // เพิ่มเข้า cache พร้อมชื่อคนแพค
+      if(S.orderNumber) S.usedOrders[S.orderNumber]={packer:S.user?S.user.displayName:'',date:new Date().toISOString().split('T')[0]};
       S.uploading=false;S.orderNumber=null;S.trackingNumber=null;
       el('bc-order').textContent='-';el('bc-tracking').textContent='-';
       
