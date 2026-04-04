@@ -314,7 +314,7 @@ function showScreen(name, fadeMsg) {
         loadUsers();
       }
     }
-    if (name==='record') { var inp=el('bc-input'); if(inp)inp.focus(); }
+    if (name==='record') focusScan();
 
     // Step 3: จอมืด fade-out
     setTimeout(function(){ fade.classList.remove('active'); }, 200);
@@ -339,7 +339,7 @@ function doLogin() {
     showScreen('record', 'ยินดีต้อนรับ ' + (r.displayName || r.username));
     setupBarcode();
     // เปิดกล้องอัตโนมัติหลัง login
-    setTimeout(function(){ startCamera(); toast('✅ เข้าสู่ระบบสำเร็จ'); }, 600);
+    setTimeout(function(){ startCamera(); toast('✅ เข้าสู่ระบบสำเร็จ'); focusScan(); }, 600);
   }).catch(function(e){hideOverlay();showErr('login-err','❌ '+(e.message||e));});
 }
 
@@ -372,6 +372,7 @@ function onCamReady(stream) {
   el('cam-placeholder').style.display='none';
   el('cam-status-text').textContent='🟢 กล้องพร้อม';
   el('cam-status-text').className='text-emerald-400';
+  focusScan();
 }
 
 function stopCamera(){if(S.stream)S.stream.getTracks().forEach(function(t){t.stop();});S.stream=null;}
@@ -412,33 +413,41 @@ function setupBarcode() {
 
 function handleBarcode(code) {
   if(!S.recording){
-    // ตรวจสอบว่าเลขคำสั่งซื้อนี้เคยใช้ไปแล้วหรือไม่
-    toast('🔍 ตรวจสอบคำสั่งซื้อ...');
+    // ═══ ยิงครั้งแรก = เลขคำสั่งซื้อ ═══
+    // เช็คว่าเคยแพคไปแล้วหรือไม่
+    toast('🔍 ตรวจสอบ...');
     gRun('checkOrderExists',{orderNumber:code}).then(function(r){
       if(r && r.exists){
-        toast('⚠️ คำสั่งซื้อ "'+code+'" เคยบันทึกไปแล้ว! ยิงใหม่',5000);
-        var inp=el('bc-input');if(inp){inp.value='';inp.focus();}
+        toast('🚫 ยิงซ้ำ! ออเดอร์ "'+code+'" แพคไปแล้วนะ',5000);
+        focusScan();
         return;
       }
       // ไม่ซ้ำ → เริ่มอัด
       S.orderNumber=code;S.trackingNumber=null;
-      el('bc-order').textContent=code;el('bc-tracking').textContent='รอยิง...';
-      toast('📋 คำสั่งซื้อ: '+code); startRecording();
+      el('bc-order').textContent=code;el('bc-tracking').textContent='รอยิงซ้ำ...';
+      toast('📋 คำสั่งซื้อ: '+code+' — ยิงซ้ำอีกครั้งเพื่อยืนยัน');
+      startRecording();
     }).catch(function(){
-      // ถ้าเช็คไม่ได้ ให้อัดต่อไปก่อน (ไม่บล็อก)
+      // เช็คไม่ได้ → อัดต่อไปก่อน
       S.orderNumber=code;S.trackingNumber=null;
-      el('bc-order').textContent=code;el('bc-tracking').textContent='รอยิง...';
+      el('bc-order').textContent=code;el('bc-tracking').textContent='รอยิงซ้ำ...';
       toast('📋 คำสั่งซื้อ: '+code); startRecording();
     });
   } else {
+    // ═══ ยิงครั้งที่สอง = ต้องซ้ำกับครั้งแรก ═══
+    if(code !== S.orderNumber){
+      toast('❌ ยิงผิดพลาด! ต้องยิงเลขเดิม "'+S.orderNumber+'"',5000);
+      focusScan();
+      return;
+    }
     S.trackingNumber=code;
     el('bc-tracking').textContent=code;
-    toast('📦 เลขพัสดุ: '+code); stopRecording();
+    toast('✅ ยืนยัน: '+code+' — หยุดบันทึก'); stopRecording();
   }
-  // Focus กลับที่ช่อง scanner
-  var inp = el('bc-input');
-  if (inp) { inp.value = ''; inp.focus(); }
+  focusScan();
 }
+
+function focusScan(){var inp=el('bc-input');if(inp){inp.value='';inp.focus();}}
 
 // ═══════════════════════════════════════
 // RECORDING
@@ -484,7 +493,7 @@ function cancelRecording(){
   el('info-start').textContent='-';el('info-end').textContent='-';el('info-dur').textContent='-';
   setRecUI(false);
   toast('🚫 ยกเลิกการบันทึกแล้ว');
-  var inp=el('bc-input');if(inp){inp.value='';inp.focus();}
+  focusScan();
 }
 
 function onRecordStop() {
@@ -556,7 +565,7 @@ function uploadDone(driveData,info,dur,end,prod){
       S.uploading=false;S.orderNumber=null;S.trackingNumber=null;
       el('bc-order').textContent='-';el('bc-tracking').textContent='-';
       
-      var inp=el('bc-input');if(inp){inp.value='';inp.focus();}
+      focusScan();
     },1200);
   });
 }
@@ -766,7 +775,7 @@ function doManualCleanup(){
 // ═══════════════════════════════════════
 function setRecUI(rec){
   if(rec){el('status-icon').textContent='🔴';el('status-text').textContent='กำลังบันทึก...';el('status-text').className='font-bold text-sm text-red-400';
-    el('status-sub').textContent='ยิง Barcode เลขพัสดุเพื่อหยุด';el('btn-start').disabled=true;el('btn-start').className='bg-slate-700 text-slate-500 font-bold py-3 rounded-2xl text-sm cursor-not-allowed';
+    el('status-sub').textContent='ยิง Barcode ซ้ำเพื่อยืนยันและหยุดอัด';el('btn-start').disabled=true;el('btn-start').className='bg-slate-700 text-slate-500 font-bold py-3 rounded-2xl text-sm cursor-not-allowed';
     el('btn-stop').disabled=false;el('btn-stop').className='bg-red-600 hover:bg-red-500 font-bold py-3 rounded-2xl text-sm';el('rec-badge').classList.remove('hidden');el('success-box').classList.add('hidden');
     el('btn-cancel').classList.remove('hidden');
   }else{el('status-icon').textContent='⏸️';el('status-text').textContent='พร้อมบันทึก';el('status-text').className='font-bold text-sm text-slate-200';
