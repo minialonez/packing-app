@@ -40,7 +40,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="space-y-4">
 <div>
 <label class="text-xs text-slate-400 uppercase tracking-wider">ชื่อผู้ใช้</label>
-<input id="inp-user" type="text" placeholder="username" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500" onkeydown="if(event.key==='Enter')document.getElementById('inp-pass').focus()">
+<input id="inp-user" type="text" placeholder="username" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 uppercase" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')document.getElementById('inp-pass').focus()">
 </div>
 <div>
 <label class="text-xs text-slate-400 uppercase tracking-wider">รหัสผ่าน</label>
