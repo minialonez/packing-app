@@ -102,6 +102,18 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div><div class="text-slate-500 text-xs">ผู้แพค</div><div id="info-packer" class="text-blue-300 mt-0.5">-</div></div>
 </div>
 
+<!-- Mode: แพคปกติ / สินค้าคืน -->
+<div class="grad-card rounded-2xl p-3">
+<div class="flex items-center justify-between">
+<span class="text-xs text-slate-400">โหมดการทำงาน</span>
+<div class="flex items-center gap-2">
+<button id="btn-mode-pack" onclick="setMode('pack')" class="text-xs px-3 py-1.5 rounded-lg font-bold bg-emerald-700 text-white">📦 แพคสินค้า</button>
+<button id="btn-mode-return" onclick="setMode('return')" class="text-xs px-3 py-1.5 rounded-lg font-bold bg-slate-700 text-slate-400">🔄 สินค้าคืน</button>
+</div>
+</div>
+<div id="mode-return-badge" class="hidden mt-2 text-center text-xs text-orange-400 bg-orange-950/40 rounded-lg py-1">🔄 โหมดสินค้าคืน — เลขจะเติม R- นำหน้าอัตโนมัติ</div>
+</div>
+
 <!-- Order/Tracking display -->
 <div class="grad-card rounded-2xl p-3 grid grid-cols-2 gap-2">
 <div class="flex items-center gap-2"><span class="text-lg">📋</span><div><div class="text-xs text-slate-500">คำสั่งซื้อ</div><div id="bc-order" class="font-mono text-yellow-400 text-sm truncate">-</div></div></div>
@@ -244,7 +256,18 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <button onclick="doSetupTriggers()" class="bg-purple-700 hover:bg-purple-600 text-sm px-4 py-2 rounded-xl">⏰ ตั้ง Auto-Delete รายวัน</button>
 <button onclick="doManualCleanup()" class="bg-orange-700 hover:bg-orange-600 text-sm px-4 py-2 rounded-xl">🗑️ ลบเดี๋ยวนี้</button>
 </div><div id="sys-result" class="hidden mt-3 text-xs text-slate-300 bg-slate-800 rounded-xl p-3"></div>
-</div></div></div>
+</div>
+<div class="grad-card rounded-2xl p-5"><h3 class="font-semibold text-sm mb-4">📁 ตั้งค่าที่เก็บวิดีโอ</h3>
+<p class="text-xs text-slate-500 mb-3">ระบุ Folder ID ของ Google Drive ที่ต้องการให้สร้างโฟลเดอร์ PackingVideos (เว้นว่าง = ใช้ My Drive)</p>
+<div class="flex items-center gap-2 mb-3">
+<input id="cfg-folder-id" type="text" placeholder="วาง Folder ID จาก Google Drive URL..." class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-blue-500">
+<button onclick="doSetFolder()" class="bg-blue-600 hover:bg-blue-500 text-sm px-4 py-2 rounded-xl flex-shrink-0">บันทึก</button>
+<button onclick="doClearFolder()" class="bg-slate-700 hover:bg-slate-600 text-sm px-4 py-2 rounded-xl flex-shrink-0">ล้าง</button>
+</div>
+<div id="cfg-folder-status" class="text-xs text-slate-400">กำลังโหลด...</div>
+<p class="text-xs text-slate-600 mt-2">วิธีหา Folder ID: เปิดโฟลเดอร์ใน Google Drive → ดู URL → drive.google.com/drive/folders/<b class="text-slate-400">xxxxx</b> ← copy ส่วนนี้</p>
+</div>
+</div></div>
 
 <!-- FADE TRANSITION -->
 <div id="screen-fade">
@@ -331,7 +354,7 @@ function gRun(action, params) {
 // STATE
 // ═══════════════════════════════════════
 var S = { user:null, recording:false, recorder:null, chunks:[], stream:null, t0:null, timerIv:null,
-  orderNumber:null, trackingNumber:null, charts:{}, uploading:false, usedOrders:{} };
+  orderNumber:null, trackingNumber:null, rawBarcode:null, mode:'pack', charts:{}, uploading:false, usedOrders:{} };
 
 // ═══════════════════════════════════════
 // SCREEN ROUTER
@@ -370,6 +393,7 @@ function showScreen(name, fadeMsg) {
         document.getElementById('screen-record').classList.add('active');
       } else {
         loadUsers();
+        loadFolderConfig();
       }
     }
     if (name==='record') focusScan();
@@ -495,24 +519,28 @@ function setupBarcode() {
 function handleBarcode(code) {
   if(!S.recording){
     // ═══ ยิงครั้งแรก = เลขคำสั่งซื้อ ═══
-    var existing = S.usedOrders[code];
+    // ถ้าโหมดสินค้าคืน → เติม R- นำหน้า
+    var orderCode = (S.mode==='return') ? 'R-'+code : code;
+
+    var existing = S.usedOrders[orderCode];
     if(existing){
-      showDupPopup(code, existing.packer, existing.date);
+      showDupPopup(orderCode, existing.packer, existing.date);
       focusScan(); return;
     }
-    S.orderNumber=code;S.trackingNumber=null;
-    el('bc-order').textContent=code;el('bc-tracking').textContent='รอยิงซ้ำ...';
-    toast('📋 คำสั่งซื้อ: '+code+' — ยิงซ้ำอีกครั้งเพื่อยืนยัน');
+    S.orderNumber=orderCode;S.rawBarcode=code;S.trackingNumber=null;
+    el('bc-order').textContent=orderCode;el('bc-tracking').textContent='รอยิงซ้ำ...';
+    var modeLabel=(S.mode==='return')?'🔄 สินค้าคืน: ':'📋 คำสั่งซื้อ: ';
+    toast(modeLabel+orderCode+' — ยิงซ้ำอีกครั้งเพื่อยืนยัน');
     startRecording();
   } else {
-    // ═══ ยิงครั้งที่สอง = ต้องซ้ำกับครั้งแรก ═══
-    if(code !== S.orderNumber){
-      toast('❌ ยิงผิดพลาด! ต้องยิงเลขเดิม "'+S.orderNumber+'"',5000);
+    // ═══ ยิงครั้งที่สอง = ต้องซ้ำกับ barcode ดิบ (ไม่มี R-) ═══
+    if(code !== S.rawBarcode){
+      toast('❌ ยิงผิดพลาด! ต้องยิงเลขเดิม "'+S.rawBarcode+'"',5000);
       focusScan(); return;
     }
-    S.trackingNumber=code;
-    el('bc-tracking').textContent=code;
-    toast('✅ ยืนยัน: '+code+' — หยุดบันทึก'); stopRecording();
+    S.trackingNumber=S.orderNumber; // ใช้เลขเดียวกัน (รวม R- ถ้ามี)
+    el('bc-tracking').textContent=S.orderNumber;
+    toast('✅ ยืนยัน: '+S.orderNumber+' — หยุดบันทึก'); stopRecording();
   }
   focusScan();
 }
@@ -539,6 +567,23 @@ function loadUsedOrders(){
 }
 
 function focusScan(){var inp=el('bc-input');if(inp){inp.value='';inp.focus();}}
+
+// ═══════════════════════════════════════
+// MODE — แพคปกติ / สินค้าคืน
+// ═══════════════════════════════════════
+function setMode(m){
+  S.mode=m;
+  if(m==='return'){
+    el('btn-mode-return').className='text-xs px-3 py-1.5 rounded-lg font-bold bg-orange-600 text-white';
+    el('btn-mode-pack').className='text-xs px-3 py-1.5 rounded-lg font-bold bg-slate-700 text-slate-400';
+    el('mode-return-badge').classList.remove('hidden');
+  } else {
+    el('btn-mode-pack').className='text-xs px-3 py-1.5 rounded-lg font-bold bg-emerald-700 text-white';
+    el('btn-mode-return').className='text-xs px-3 py-1.5 rounded-lg font-bold bg-slate-700 text-slate-400';
+    el('mode-return-badge').classList.add('hidden');
+  }
+  focusScan();
+}
 
 // ═══════════════════════════════════════
 // ค้นหา + ดูคลิปย้อนหลัง (ค้นจาก cache ทันที)
@@ -693,7 +738,7 @@ function cancelRecording(){
     if(S.recorder.state!=='inactive') S.recorder.stop();
     S.recording=false;clearInterval(S.timerIv);
   }
-  S.chunks=[];S.orderNumber=null;S.trackingNumber=null;S.t0=null;
+  S.chunks=[];S.orderNumber=null;S.trackingNumber=null;S.rawBarcode=null;S.t0=null;
   el('bc-order').textContent='-';el('bc-tracking').textContent='-';
   el('info-start').textContent='-';el('info-end').textContent='-';el('info-dur').textContent='-';
   setRecUI(false);
@@ -717,7 +762,7 @@ function onRecordStop() {
 function doUpload(blob,filename,durationSec,endTime,products) {
   if(S.uploading){toast('⚠️ กำลังอัปโหลดอยู่');return;}
   S.uploading=true; setUpload(true,5,'กำลังขอ token...');
-  gRun('getUploadInfo',{}).then(function(info){
+  gRun('getUploadInfo',{mode:S.mode}).then(function(info){
     if(!info.success)throw new Error(info.message);
     setUpload(true,10,'เริ่มอัปโหลด...');
     if(blob.size<5*1024*1024)return simpleUp(blob,filename,info,durationSec,endTime,products);
@@ -769,7 +814,7 @@ function uploadDone(driveData,info,dur,end,prod){
     setTimeout(function(){setUpload(false);showSuccess(logData);
       // เพิ่มเข้า cache พร้อมชื่อคนแพค
       if(S.orderNumber) S.usedOrders[S.orderNumber]={packer:S.user?S.user.displayName:'',date:new Date().toISOString().split('T')[0]};
-      S.uploading=false;S.orderNumber=null;S.trackingNumber=null;
+      S.uploading=false;S.orderNumber=null;S.trackingNumber=null;S.rawBarcode=null;
       el('bc-order').textContent='-';el('bc-tracking').textContent='-';
       
       focusScan();
@@ -975,6 +1020,34 @@ function doManualCleanup(){
   if(!confirm('ลบโฟลเดอร์เก่ากว่า '+days+' วัน เดี๋ยวนี้?'))return;
   showOverlay('กำลังลบ...');
   gRun('cleanOldFolders',{days:days}).then(function(r){hideOverlay();el('sys-result').classList.remove('hidden');el('sys-result').textContent='✅ ลบ '+r.deleted.length+' โฟลเดอร์';}).catch(function(e){hideOverlay();toast('❌ '+e.message);});
+}
+
+// ── Folder Config ──
+function loadFolderConfig(){
+  gRun('getConfig',{}).then(function(r){
+    if(!r||!r.success)return;
+    el('cfg-folder-id').value=r.parentFolderId||'';
+    if(r.parentFolderId){
+      el('cfg-folder-status').innerHTML='📁 ปัจจุบัน: <b class="text-blue-400">'+r.folderPath+'</b> ('+r.parentFolderId+')';
+    } else {
+      el('cfg-folder-status').textContent='📁 ปัจจุบัน: My Drive (ค่าเริ่มต้น)';
+    }
+  });
+}
+function doSetFolder(){
+  var id=v('cfg-folder-id');
+  if(!id){toast('⚠️ กรอก Folder ID');return;}
+  showOverlay('กำลังตรวจสอบ...');
+  gRun('setConfig',{key:'parentFolderId',value:id}).then(function(r){
+    hideOverlay();
+    if(r.success){toast('✅ '+r.message);loadFolderConfig();}
+    else toast('❌ '+r.message,5000);
+  }).catch(function(e){hideOverlay();toast('❌ '+e.message);});
+}
+function doClearFolder(){
+  gRun('setConfig',{key:'parentFolderId',value:''}).then(function(r){
+    if(r.success){toast('✅ ล้างแล้ว — ใช้ My Drive');el('cfg-folder-id').value='';loadFolderConfig();}
+  });
 }
 
 // ═══════════════════════════════════════
