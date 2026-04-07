@@ -782,53 +782,59 @@ function doSearch(){
 var returnData = []; // cache
 
 function loadReturns(){
-  showOverlay('กำลังโหลดรายการสินค้าคืน...');
+  showOverlay('กำลังโหลด...');
   gRun('getReturns',{}).then(function(r){
     hideOverlay();
     if(!r||!r.success){toast('⚠️ '+(r&&r.message||'โหลดไม่ได้'));return;}
     returnData=r.returns||[];
-    renderReturns(returnData);
+    renderReturns();
   }).catch(function(e){hideOverlay();toast('❌ '+e.message);});
 }
 
-function renderReturns(list){
+function renderReturns(){
+  var filter=el('rt-filter')?el('rt-filter').value:'';
+  var items=filter?returnData.filter(function(x){return x.status===filter;}):returnData;
+
+  // KPIs
+  var w=0,c=0,l=0;
+  returnData.forEach(function(x){
+    if(x.status==='รอตรวจสอบสินค้าคืน')w++;
+    else if(x.status==='ตรวจสอบสินค้าแล้ว')c++;
+    else if(x.status==='สูญหาย')l++;
+  });
+  el('rt-kpi-waiting').textContent=w;
+  el('rt-kpi-checked').textContent=c;
+  el('rt-kpi-lost').textContent=l;
+
+  // Table
   var isAdmin=S.user&&S.user.role==='admin';
   var h='';
-  if(!list.length){h='<tr><td colspan="6" class="py-8 text-center text-slate-500">ยังไม่มีรายการ</td></tr>';}
-  else list.forEach(function(r){
-    var sc,si;
-    if(r.status==='ตรวจสอบสินค้าแล้ว'){sc='text-emerald-400';si='✅';}
-    else if(r.status==='สูญหาย'){sc='text-red-400';si='🚨';}
-    else{sc='text-yellow-400';si='⏳';}
+  if(!items.length) h='<tr><td colspan="6" class="py-8 text-center text-slate-500">ยังไม่มีรายการ</td></tr>';
+  else items.forEach(function(r){
+    var sc,badge;
+    if(r.status==='รอตรวจสอบสินค้าคืน'){sc='bg-yellow-900/60 text-yellow-300';badge='⏳ รอตรวจสอบ';}
+    else if(r.status==='ตรวจสอบสินค้าแล้ว'){sc='bg-emerald-900/60 text-emerald-300';badge='✅ ตรวจสอบแล้ว';}
+    else if(r.status==='สูญหาย'){sc='bg-red-900/60 text-red-300';badge='❌ สูญหาย';}
+    else{sc='bg-slate-700 text-slate-300';badge=r.status;}
 
     var noteColor=r.note&&r.note.indexOf('สภาพดี')!==-1?'text-emerald-400':(r.note&&r.note.indexOf('เสียหาย')!==-1?'text-red-400':'text-slate-500');
-    var videoBtn=r.videoFileId?'<button onclick="playVideo(\''+r.videoFileId+'\',\''+r.returnTrackingNo+'\',\'\',\'\',\'\')" class="text-blue-400 hover:underline text-xs">▶ ดูคลิป</button>':'<span class="text-slate-600">-</span>';
-
-    // ปุ่ม admin: แจ้งสูญหาย
-    var adminBtn='';
-    if(isAdmin&&r.status==='รอตรวจสอบสินค้าคืน'){
-      adminBtn=' <button onclick="doMarkLost(\''+r.returnTrackingNo+'\')" class="text-red-400 hover:underline text-xs ml-2">แจ้งสูญหาย</button>';
+    var videoBtn=r.videoFileId?'<button onclick="playVideo(\''+r.videoFileId+'\',\''+r.returnTrackingNo+'\',\'\',\'\',\'\')" class="text-blue-400 hover:underline text-xs">▶ ดูคลิป</button>':'';
+    var adminBtns='';
+    if(isAdmin && r.status==='รอตรวจสอบสินค้าคืน'){
+      adminBtns='<button onclick="doMatchReturn(\''+r.returnTrackingNo+'\')" class="text-blue-400 hover:underline text-xs ml-1">🔗 จับคู่</button>';
+      adminBtns+='<button onclick="doMarkLost(\''+r.returnTrackingNo+'\')" class="text-red-400 hover:underline text-xs ml-1">แจ้งสูญหาย</button>';
     }
 
     h+='<tr class="border-b border-slate-800">'
-      +'<td class="py-2 pr-3 text-slate-400 text-xs">'+(r.createdDate||'-')+'</td>'
       +'<td class="py-2 pr-3 font-mono text-yellow-400">'+r.orderNumber+'</td>'
       +'<td class="py-2 pr-3 font-mono text-blue-400">'+r.returnTrackingNo+'</td>'
-      +'<td class="py-2 pr-3"><span class="'+sc+' text-xs">'+si+' '+r.status+'</span></td>'
+      +'<td class="py-2 pr-3"><span class="text-xs px-2 py-0.5 rounded-full '+sc+'">'+badge+'</span></td>'
       +'<td class="py-2 pr-3"><span class="'+noteColor+' text-xs">'+(r.note||'-')+'</span></td>'
-      +'<td class="py-2 whitespace-nowrap">'+videoBtn+adminBtn+'</td>'
+      +'<td class="py-2 pr-3 text-slate-500 text-xs">'+(r.createdDate||'-')+'</td>'
+      +'<td class="py-2 whitespace-nowrap">'+videoBtn+adminBtns+'</td>'
       +'</tr>';
   });
   el('rt-tbody').innerHTML=h;
-}
-
-function filterReturns(){
-  var q=v('rt-search').toUpperCase();
-  if(!q){renderReturns(returnData);return;}
-  var filtered=returnData.filter(function(r){
-    return r.orderNumber.toUpperCase().indexOf(q)!==-1 || r.returnTrackingNo.toUpperCase().indexOf(q)!==-1;
-  });
-  renderReturns(filtered);
 }
 
 function doAddReturn(){
@@ -836,7 +842,8 @@ function doAddReturn(){
   if(!order||!tracking){showInline('rt-add-result','กรุณากรอกข้อมูลให้ครบ','err');return;}
   gRun('addReturn',{orderNumber:order,returnTrackingNo:tracking}).then(function(r){
     if(r.success){
-      showInline('rt-add-result','✅ เพิ่มรายการสำเร็จ — สถานะ: รอตรวจสอบสินค้าคืน','ok');
+      var msg=r.autoMatched?'✅ เพิ่มสำเร็จ + พบวิดีโอที่ถ่ายไว้แล้ว!':'✅ เพิ่มสำเร็จ — สถานะ: รอตรวจสอบ';
+      showInline('rt-add-result',msg,'ok');
       el('rt-order').value='';el('rt-tracking').value='';
       loadReturns();
     } else showInline('rt-add-result','❌ '+r.message,'err');
@@ -851,11 +858,19 @@ function doMarkLost(trackingNo){
   });
 }
 
-// Auto-match: หลัง upload สินค้าคืนสำเร็จ → อัปเดต ReturnTracking อัตโนมัติ
+function doMatchReturn(trackingNo){
+  showOverlay('กำลังค้นหาวิดีโอ...');
+  gRun('matchReturn',{returnTrackingNo:trackingNo}).then(function(r){
+    hideOverlay();
+    if(r.success){toast('✅ '+r.message);loadReturns();}
+    else toast('⚠️ '+r.message,5000);
+  }).catch(function(e){hideOverlay();toast('❌ '+e.message);});
+}
+
 function autoMatchReturn(rawBarcode, note, fileId){
   if(!rawBarcode)return;
-  gRun('updateReturn',{returnTrackingNo:rawBarcode, status:'ตรวจสอบสินค้าแล้ว', note:note, videoFileId:fileId}).then(function(r){
-    if(r.success) toast('🔄 จับคู่สินค้าคืนสำเร็จ: '+rawBarcode);
+  gRun('updateReturn',{returnTrackingNo:rawBarcode,status:'ตรวจสอบสินค้าแล้ว',note:note,videoFileId:fileId}).then(function(r){
+    if(r&&r.success) toast('🔄 จับคู่สินค้าคืนสำเร็จ: '+rawBarcode);
   }).catch(function(){});
 }
 
@@ -1311,86 +1326,8 @@ function doClearFolder(){
 }
 
 // ═══════════════════════════════════════
-// RETURN TRACKING — ติดตามสินค้าคืน
+// RETURN TRACKING — ติดตามสินค้าคืน (ใช้ functions จากด้านบน)
 // ═══════════════════════════════════════
-var returnData = []; // cache
-
-function loadReturns(){
-  gRun('getReturns',{}).then(function(r){
-    if(r&&r.success){returnData=r.returns||[];renderReturns();}
-  });
-}
-
-function renderReturns(){
-  var filter=el('rt-filter')?el('rt-filter').value:'';
-  var items=filter?returnData.filter(function(x){return x.status===filter;}):returnData;
-
-  // KPIs
-  var w=0,c=0,l=0;
-  returnData.forEach(function(x){
-    if(x.status==='รอตรวจสอบสินค้าคืน')w++;
-    else if(x.status==='ตรวจสอบสินค้าแล้ว')c++;
-    else if(x.status==='สูญหาย')l++;
-  });
-  el('rt-kpi-waiting').textContent=w;
-  el('rt-kpi-checked').textContent=c;
-  el('rt-kpi-lost').textContent=l;
-
-  // Table
-  var isAdmin=S.user&&S.user.role==='admin';
-  var h='';
-  if(!items.length) h='<tr><td colspan="6" class="py-8 text-center text-slate-500">ไม่มีข้อมูล</td></tr>';
-  else items.forEach(function(r){
-    var sc,badge;
-    if(r.status==='รอตรวจสอบสินค้าคืน'){sc='bg-yellow-900/60 text-yellow-300';badge='⏳ รอตรวจสอบ';}
-    else if(r.status==='ตรวจสอบสินค้าแล้ว'){sc='bg-emerald-900/60 text-emerald-300';badge='✅ ตรวจสอบแล้ว';}
-    else if(r.status==='สูญหาย'){sc='bg-red-900/60 text-red-300';badge='❌ สูญหาย';}
-    else{sc='bg-slate-700 text-slate-300';badge=r.status;}
-
-    var videoBtn=r.videoFileId?'<button onclick="playVideo(\''+r.videoFileId+'\',\''+r.returnTrackingNo+'\',\'\',\'\',\'\')" class="text-blue-400 hover:underline text-xs">▶ ดูคลิป</button>':'';
-    var adminBtns='';
-    if(isAdmin && r.status==='รอตรวจสอบสินค้าคืน'){
-      adminBtns='<button onclick="markReturnLost(\''+r.returnTrackingNo+'\')" class="text-red-400 hover:underline text-xs ml-1">แจ้งสูญหาย</button>';
-    }
-
-    h+='<tr class="border-b border-slate-800">'
-      +'<td class="py-2 pr-3 font-mono text-yellow-400">'+r.orderNumber+'</td>'
-      +'<td class="py-2 pr-3 font-mono text-blue-400">'+r.returnTrackingNo+'</td>'
-      +'<td class="py-2 pr-3"><span class="text-xs px-2 py-0.5 rounded-full '+sc+'">'+badge+'</span></td>'
-      +'<td class="py-2 pr-3 text-slate-400">'+(r.note||'-')+'</td>'
-      +'<td class="py-2 pr-3 text-slate-500">'+r.createdDate+'</td>'
-      +'<td class="py-2 whitespace-nowrap">'+videoBtn+adminBtns+'</td>'
-      +'</tr>';
-  });
-  el('rt-tbody').innerHTML=h;
-}
-
-function doAddReturn(){
-  var o=v('rt-order'),t=v('rt-tracking');
-  if(!o||!t){showInline('rt-add-result','กรอกให้ครบ','err');return;}
-  gRun('addReturn',{orderNumber:o,returnTrackingNo:t}).then(function(r){
-    if(r.success){
-      showInline('rt-add-result','✅ เพิ่มสำเร็จ — สถานะ: รอตรวจสอบ','ok');
-      el('rt-order').value='';el('rt-tracking').value='';
-      loadReturns();
-    } else showInline('rt-add-result','❌ '+r.message,'err');
-  });
-}
-
-function markReturnLost(trackingNo){
-  if(!confirm('ยืนยันแจ้งสูญหาย: '+trackingNo+'?'))return;
-  gRun('updateReturn',{returnTrackingNo:trackingNo,status:'สูญหาย',note:'แอดมินแจ้งสูญหาย'}).then(function(r){
-    if(r.success){toast('✅ อัปเดตสำเร็จ');loadReturns();}
-    else toast('❌ '+r.message);
-  });
-}
-
-// Auto-match: หลัง upload วิดีโอสินค้าคืน → เช็คว่าตรงกับเลขพัสดุคืนที่กรอกไว้ไหม
-function autoMatchReturn(rawBarcode, note, videoFileId){
-  gRun('updateReturn',{returnTrackingNo:rawBarcode,status:'ตรวจสอบสินค้าแล้ว',note:note,videoFileId:videoFileId}).then(function(r){
-    if(r&&r.success) toast('🔄 จับคู่สินค้าคืนสำเร็จ: '+rawBarcode);
-  }).catch(function(){});
-}
 
 // ═══════════════════════════════════════
 // UI HELPERS
