@@ -121,10 +121,11 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="flex items-center gap-2"><span class="text-lg">📦</span><div><div class="text-xs text-slate-500">เลขพัสดุ</div><div id="bc-tracking" class="font-mono text-blue-400 text-sm truncate">-</div></div></div>
 </div>
 
-<!-- Start/Stop/Cancel -->
+<!-- Start/Pause/Save/Cancel -->
 <div class="grid grid-cols-3 gap-2">
 <button id="btn-start" onclick="startRecordingManual()" class="bg-emerald-700 hover:bg-emerald-600 font-bold py-3 rounded-2xl text-sm">▶ เริ่มอัด</button>
-<button id="btn-stop" onclick="stopRecordingManual()" disabled class="bg-slate-700 text-slate-500 font-bold py-3 rounded-2xl text-sm cursor-not-allowed">⏹ หยุด</button>
+<button id="btn-pause" onclick="pauseRecording()" class="hidden bg-yellow-700 hover:bg-yellow-600 font-bold py-3 rounded-2xl text-sm">⏸ พัก</button>
+<button id="btn-stop" onclick="stopRecordingManual()" disabled class="bg-slate-700 text-slate-500 font-bold py-3 rounded-2xl text-sm cursor-not-allowed">⏹ บันทึก</button>
 <button id="btn-cancel" onclick="cancelRecording()" class="hidden bg-red-900/60 hover:bg-red-800 text-red-300 font-bold py-3 rounded-2xl text-sm">✕ ยกเลิก</button>
 </div>
 
@@ -490,7 +491,7 @@ function gRun(action, params) {
 // ═══════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════
-var S = { user:null, recording:false, recorder:null, chunks:[], stream:null, t0:null, timerIv:null,
+var S = { user:null, recording:false, paused:false, recorder:null, chunks:[], stream:null, t0:null, timerIv:null,
   orderNumber:null, trackingNumber:null, rawBarcode:null, mode:'pack', charts:{}, uploading:false, usedOrders:{}, pendingUpload:null };
 
 // ═══════════════════════════════════════
@@ -655,9 +656,8 @@ function setupBarcode() {
 }
 
 function handleBarcode(code) {
-  if(!S.recording){
+  if(!S.recording && !S.paused){
     // ═══ ยิงครั้งแรก = เลขคำสั่งซื้อ ═══
-    // ถ้าโหมดสินค้าคืน → เติม R- นำหน้า
     var orderCode = (S.mode==='return') ? 'R-'+code : code;
 
     var existing = S.usedOrders[orderCode];
@@ -676,7 +676,9 @@ function handleBarcode(code) {
       toast('❌ ยิงผิดพลาด! ต้องยิงเลขเดิม "'+S.rawBarcode+'"',5000);
       focusScan(); return;
     }
-    S.trackingNumber=S.orderNumber; // ใช้เลขเดียวกัน (รวม R- ถ้ามี)
+    // ถ้า pause อยู่ → resume ก่อน stop
+    if(S.paused && S.recorder && S.recorder.state==='paused') S.recorder.resume();
+    S.trackingNumber=S.orderNumber;
     el('bc-tracking').textContent=S.orderNumber;
     toast('✅ ยืนยัน: '+S.orderNumber+' — หยุดบันทึก'); stopRecording();
   }
@@ -967,10 +969,32 @@ function startRecordingManual(){
   startRecording();
 }
 function stopRecordingManual(){
-  if(!S.recording)return;
+  if(!S.recording&&!S.paused)return;
+  // Resume ก่อนถ้ากำลัง pause อยู่ (เพื่อให้ได้ chunk สุดท้าย)
+  if(S.paused && S.recorder && S.recorder.state==='paused') S.recorder.resume();
   S.trackingNumber=S.orderNumber||'MANUAL';
   el('bc-tracking').textContent=S.trackingNumber;
   toast('⏹ หยุดบันทึก'); stopRecording();
+}
+
+function pauseRecording(){
+  if(!S.recording||!S.recorder||S.paused)return;
+  S.recorder.pause();
+  S.paused=true;
+  clearInterval(S.timerIv);
+  setRecUI('paused');
+  toast('⏸ พักการอัดชั่วคราว');
+  focusScan();
+}
+
+function resumeRecording(){
+  if(!S.paused||!S.recorder)return;
+  S.recorder.resume();
+  S.paused=false;
+  startTimer();
+  setRecUI(true);
+  toast('▶ อัดต่อ');
+  focusScan();
 }
 
 function startRecording() {
@@ -984,7 +1008,7 @@ function startRecording() {
   var mime='';
   ['video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].forEach(function(m){if(!mime&&MediaRecorder.isTypeSupported(m))mime=m;});
   if(!mime){toast('❌ Browser ไม่รองรับ');return;}
-  S.chunks=[];S.t0=new Date();
+  S.chunks=[];S.t0=new Date();S.paused=false;
   try{S.recorder=new MediaRecorder(S.stream,{mimeType:mime,videoBitsPerSecond:2500000});}catch(e){toast('❌ '+e.message);return;}
   S.recorder.ondataavailable=function(e){if(e.data&&e.data.size>0)S.chunks.push(e.data);};
   S.recorder.onstop=onRecordStop;
@@ -993,14 +1017,13 @@ function startRecording() {
   el('info-start').textContent=fmtTime(S.t0);el('info-end').textContent='-';el('info-dur').textContent='-';
 }
 
-function stopRecording(){if(!S.recorder||!S.recording)return;S.recorder.stop();S.recording=false;clearInterval(S.timerIv);setRecUI(false);}
+function stopRecording(){if(!S.recorder||(!S.recording&&!S.paused))return;S.recorder.stop();S.recording=false;S.paused=false;clearInterval(S.timerIv);setRecUI(false);}
 
 function cancelRecording(){
-  if(S.recording){
-    // หยุด recorder โดยไม่บันทึก
-    S.recorder.onstop=null; // ยกเลิก callback onRecordStop
+  if(S.recording||S.paused){
+    S.recorder.onstop=null;
     if(S.recorder.state!=='inactive') S.recorder.stop();
-    S.recording=false;clearInterval(S.timerIv);
+    S.recording=false;S.paused=false;clearInterval(S.timerIv);
   }
   S.chunks=[];S.orderNumber=null;S.trackingNumber=null;S.rawBarcode=null;S.t0=null;
   el('bc-order').textContent='-';el('bc-tracking').textContent='-';
@@ -1348,14 +1371,36 @@ function doClearFolder(){
 // UI HELPERS
 // ═══════════════════════════════════════
 function setRecUI(rec){
-  if(rec){el('status-icon').textContent='🔴';el('status-text').textContent='กำลังบันทึก...';el('status-text').className='font-bold text-sm text-red-400';
-    el('status-sub').textContent='ยิง Barcode ซ้ำเพื่อยืนยันและหยุดอัด';el('btn-start').disabled=true;el('btn-start').className='bg-slate-700 text-slate-500 font-bold py-3 rounded-2xl text-sm cursor-not-allowed';
-    el('btn-stop').disabled=false;el('btn-stop').className='bg-red-600 hover:bg-red-500 font-bold py-3 rounded-2xl text-sm';el('rec-badge').classList.remove('hidden');el('success-box').classList.add('hidden');
+  var pause=el('btn-pause');
+  if(rec==='paused'){
+    // ⏸ พักชั่วคราว
+    el('status-icon').textContent='⏸';el('status-text').textContent='พักชั่วคราว';el('status-text').className='font-bold text-sm text-yellow-400';
+    el('status-sub').textContent='กด "อัดต่อ" เพื่อบันทึกต่อ';
+    el('btn-start').disabled=false;el('btn-start').className='bg-emerald-700 hover:bg-emerald-600 font-bold py-3 rounded-2xl text-sm';
+    el('btn-start').textContent='▶ อัดต่อ';el('btn-start').onclick=resumeRecording;
+    pause.classList.add('hidden');
+    el('btn-stop').disabled=false;el('btn-stop').className='bg-blue-600 hover:bg-blue-500 font-bold py-3 rounded-2xl text-sm';
+    el('rec-badge').classList.remove('hidden');el('btn-cancel').classList.remove('hidden');
+  } else if(rec){
+    // 🔴 กำลังอัด
+    el('status-icon').textContent='🔴';el('status-text').textContent='กำลังบันทึก...';el('status-text').className='font-bold text-sm text-red-400';
+    el('status-sub').textContent='ยิง Barcode ซ้ำเพื่อยืนยัน หรือกดพัก/บันทึก';
+    el('btn-start').disabled=true;el('btn-start').className='bg-slate-700 text-slate-500 font-bold py-3 rounded-2xl text-sm cursor-not-allowed';
+    el('btn-start').textContent='▶ เริ่มอัด';el('btn-start').onclick=startRecordingManual;
+    pause.classList.remove('hidden');
+    el('btn-stop').disabled=false;el('btn-stop').className='bg-blue-600 hover:bg-blue-500 font-bold py-3 rounded-2xl text-sm';
+    el('rec-badge').classList.remove('hidden');el('success-box').classList.add('hidden');
     el('btn-cancel').classList.remove('hidden');
-  }else{el('status-icon').textContent='⏸️';el('status-text').textContent='พร้อมบันทึก';el('status-text').className='font-bold text-sm text-slate-200';
-    el('status-sub').textContent='ยิง Barcode คำสั่งซื้อเพื่อเริ่ม';el('btn-start').disabled=false;el('btn-start').className='bg-emerald-700 hover:bg-emerald-600 font-bold py-3 rounded-2xl text-sm';
-    el('btn-stop').disabled=true;el('btn-stop').className='bg-slate-700 text-slate-500 font-bold py-3 rounded-2xl text-sm cursor-not-allowed';el('rec-badge').classList.add('hidden');
-    el('btn-cancel').classList.add('hidden');}
+  } else {
+    // ⏸️ พร้อม (idle)
+    el('status-icon').textContent='⏸️';el('status-text').textContent='พร้อมบันทึก';el('status-text').className='font-bold text-sm text-slate-200';
+    el('status-sub').textContent='ยิง Barcode คำสั่งซื้อเพื่อเริ่ม';
+    el('btn-start').disabled=false;el('btn-start').className='bg-emerald-700 hover:bg-emerald-600 font-bold py-3 rounded-2xl text-sm';
+    el('btn-start').textContent='▶ เริ่มอัด';el('btn-start').onclick=startRecordingManual;
+    pause.classList.add('hidden');
+    el('btn-stop').disabled=true;el('btn-stop').className='bg-slate-700 text-slate-500 font-bold py-3 rounded-2xl text-sm cursor-not-allowed';
+    el('rec-badge').classList.add('hidden');el('btn-cancel').classList.add('hidden');
+  }
 }
 function startTimer(){clearInterval(S.timerIv);S.timerIv=setInterval(function(){if(!S.t0)return;var s=Math.floor((new Date()-S.t0)/1000);el('rec-timer').textContent=pad(Math.floor(s/60))+':'+pad(s%60);},1000);}
 function setUpload(show,pct,label){el('upload-box').classList.toggle('hidden',!show);if(show){el('upload-bar').style.width=pct+'%';el('upload-label').textContent=label;}}
