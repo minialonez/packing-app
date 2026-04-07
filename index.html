@@ -56,6 +56,8 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="flex items-center gap-3"><span class="text-2xl">📦</span><div><div class="font-bold text-sm">DoByTop</div><div id="nav-packer" class="text-slate-400 text-xs">-</div></div></div>
 <div class="flex items-center gap-1">
 <button onclick="showScreen('dashboard')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📊 รายงาน</button>
+<button onclick="showScreen('returns')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🔄 สินค้าคืน</button>
+<button onclick="showScreen('returns')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🔄 สินค้าคืน</button>
 <button id="admin-nav-btn" onclick="showScreen('admin')" class="hidden text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">⚙️ จัดการ</button>
 <button onclick="doLogout()" class="text-slate-400 hover:text-red-400 hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">ออก</button>
 </div></nav>
@@ -164,19 +166,51 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div id="search-results" class="hidden space-y-2 max-h-64 overflow-y-auto"></div>
 </div>
 
-<!-- ติดตามสินค้าคืน -->
-<div class="grad-card rounded-2xl p-3">
-<div class="flex items-center gap-2 mb-2">
-<span class="text-sm">🔄</span>
-<span class="text-xs text-slate-400 uppercase tracking-wider">ติดตามสินค้าคืน</span>
+</div></div>
+
+<!-- RETURN TRACKING SCREEN -->
+<div id="screen-returns" class="screen min-h-screen flex flex-col">
+<nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center gap-4">
+<button onclick="showScreen('record')" class="text-slate-400 hover:text-white text-sm">← กลับ</button>
+<span class="font-bold text-sm">🔄 ติดตามสินค้าคืน</span></nav>
+<div class="flex-1 overflow-y-auto p-4 max-w-5xl mx-auto w-full space-y-4">
+
+<!-- เพิ่มรายการคืน -->
+<div class="grad-card rounded-2xl p-5">
+<h3 class="font-semibold text-sm mb-4">➕ แจ้งสินค้าตีกลับ</h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+<div><label class="text-xs text-slate-400">รหัสคำสั่งซื้อ</label>
+<input id="rt-order" type="text" placeholder="เช่น 66857110788448" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-orange-500"></div>
+<div><label class="text-xs text-slate-400">เลขพัสดุตีคืน</label>
+<input id="rt-tracking" type="text" placeholder="เช่น TH2607437..." class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-orange-500"></div>
+<div class="flex items-end">
+<button onclick="doAddReturn()" class="w-full bg-orange-600 hover:bg-orange-500 text-sm font-medium py-2 rounded-xl">เพิ่มรายการ</button>
 </div>
-<div class="flex items-center gap-2 mb-2">
-<input id="return-search" type="text" placeholder="กรอกเลขคำสั่งซื้อ หรือเลขพัสดุตีคืน..." autocomplete="off"
-  class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-orange-500"
-  oninput="doReturnSearch()" onkeydown="if(event.key==='Enter')doReturnSearch()">
-<button onclick="doReturnSearch()" class="bg-orange-600 hover:bg-orange-500 text-xs px-3 py-2 rounded-lg font-medium">ตรวจสอบ</button>
 </div>
-<div id="return-search-results" class="hidden space-y-2"></div>
+<div id="rt-add-result" class="hidden text-xs mt-2"></div>
+</div>
+
+<!-- ค้นหา -->
+<div class="grad-card rounded-2xl p-4">
+<input id="rt-search" type="text" placeholder="🔍 ค้นหาเลขคำสั่งซื้อ / เลขพัสดุ..." class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500" oninput="filterReturns()">
+</div>
+
+<!-- ตารางรายการ -->
+<div class="grad-card rounded-2xl p-5">
+<h3 class="font-semibold text-sm mb-4">📋 รายการสินค้าคืนทั้งหมด</h3>
+<div class="overflow-x-auto">
+<table class="w-full text-xs">
+<thead><tr class="text-slate-500 border-b border-slate-800">
+<th class="text-left pb-3 pr-3">วันที่แจ้ง</th>
+<th class="text-left pb-3 pr-3">รหัสคำสั่งซื้อ</th>
+<th class="text-left pb-3 pr-3">เลขพัสดุตีคืน</th>
+<th class="text-left pb-3 pr-3">สถานะ</th>
+<th class="text-left pb-3 pr-3">หมายเหตุ</th>
+<th class="text-left pb-3">วิดีโอ / จัดการ</th>
+</tr></thead>
+<tbody id="rt-tbody" class="text-slate-300"></tbody>
+</table>
+</div>
 </div>
 
 </div></div>
@@ -237,6 +271,71 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <th class="text-left pb-3">วิดีโอ</th>
 </tr></thead><tbody id="logs-tbody" class="text-slate-300"></tbody></table></div>
 </div></div></div>
+
+<!-- RETURNS TRACKING -->
+<div id="screen-returns" class="screen min-h-screen flex flex-col">
+<nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<button onclick="showScreen('record')" class="text-slate-400 hover:text-white text-sm">← กลับ</button>
+<span class="font-bold text-sm">🔄 ติดตามสินค้าคืน</span>
+</div>
+<button onclick="loadReturns()" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-slate-300">🔄 รีเฟรช</button>
+</nav>
+<div class="flex-1 overflow-y-auto p-4 max-w-5xl mx-auto w-full space-y-4">
+
+<!-- เพิ่มรายการสินค้าคืน -->
+<div class="grad-card rounded-2xl p-5">
+<h3 class="font-semibold text-sm mb-4">➕ เพิ่มรายการสินค้าคืน</h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+<div>
+<label class="text-xs text-slate-400">รหัสคำสั่งซื้อ</label>
+<input id="rt-order" type="text" placeholder="เช่น 66857110788448" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-orange-500">
+</div>
+<div>
+<label class="text-xs text-slate-400">เลขพัสดุตีคืน</label>
+<input id="rt-tracking" type="text" placeholder="เช่น TH2607..." class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-orange-500">
+</div>
+<div class="flex items-end">
+<button onclick="doAddReturn()" class="w-full bg-orange-600 hover:bg-orange-500 text-sm font-medium px-5 py-2 rounded-xl">เพิ่มรายการ</button>
+</div>
+</div>
+<div id="rt-add-result" class="hidden text-xs mt-2"></div>
+</div>
+
+<!-- สถิติ -->
+<div class="grid grid-cols-3 gap-3">
+<div class="grad-card rounded-2xl p-4 text-center"><div class="text-2xl font-black text-yellow-400" id="rt-kpi-waiting">-</div><div class="text-slate-400 text-xs mt-1">รอตรวจสอบ</div></div>
+<div class="grad-card rounded-2xl p-4 text-center"><div class="text-2xl font-black text-emerald-400" id="rt-kpi-checked">-</div><div class="text-slate-400 text-xs mt-1">ตรวจสอบแล้ว</div></div>
+<div class="grad-card rounded-2xl p-4 text-center"><div class="text-2xl font-black text-red-400" id="rt-kpi-lost">-</div><div class="text-slate-400 text-xs mt-1">สูญหาย</div></div>
+</div>
+
+<!-- ตารางติดตาม -->
+<div class="grad-card rounded-2xl p-5">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-semibold text-sm">📋 รายการทั้งหมด</h3>
+<select id="rt-filter" class="bg-slate-800 border border-slate-700 text-white text-xs rounded-lg px-2 py-1" onchange="renderReturns()">
+<option value="">ทุกสถานะ</option>
+<option value="รอตรวจสอบสินค้าคืน">รอตรวจสอบ</option>
+<option value="ตรวจสอบสินค้าแล้ว">ตรวจสอบแล้ว</option>
+<option value="สูญหาย">สูญหาย</option>
+</select>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-xs">
+<thead><tr class="text-slate-500 border-b border-slate-800">
+<th class="text-left pb-3 pr-3">รหัสคำสั่งซื้อ</th>
+<th class="text-left pb-3 pr-3">เลขพัสดุตีคืน</th>
+<th class="text-left pb-3 pr-3">สถานะ</th>
+<th class="text-left pb-3 pr-3">หมายเหตุ</th>
+<th class="text-left pb-3 pr-3">วันที่</th>
+<th class="text-left pb-3">จัดการ</th>
+</tr></thead>
+<tbody id="rt-tbody" class="text-slate-300"></tbody>
+</table>
+</div>
+</div>
+
+</div></div>
 
 <!-- ADMIN -->
 <div id="screen-admin" class="screen min-h-screen flex flex-col">
@@ -419,10 +518,10 @@ function showScreen(name, fadeMsg) {
 
     if (name==='dashboard') {
       setupDashboard();
-      // admin default วันนี้, พนักงาน default 30 วัน (เห็นย้อนหลังทันที)
       var defaultPeriod = (S.user && S.user.role === 'admin') ? 'today' : 'month';
       loadStats(defaultPeriod);
     }
+    if (name==='returns') loadReturns();
     if (name==='admin') {
       // ป้องกัน packer เข้าหน้า admin
       if (!S.user || S.user.role !== 'admin') {
@@ -435,6 +534,7 @@ function showScreen(name, fadeMsg) {
       }
     }
     if (name==='record') focusScan();
+    if (name==='returns') loadReturns();
 
     // Step 3: จอมืด fade-out
     setTimeout(function(){ fade.classList.remove('active'); }, 200);
@@ -678,54 +778,86 @@ function doSearch(){
 }
 
 // ═══════════════════════════════════════
-// ติดตามสินค้าคืน — ค้นจาก cache (ทันที)
+// ติดตามสินค้าคืน (Return Tracking)
 // ═══════════════════════════════════════
-function doReturnSearch(){
-  var q=v('return-search').toUpperCase();
-  var box=el('return-search-results');
-  if(!q||q.length<3){box.classList.add('hidden');box.innerHTML='';return;}
+var returnData = []; // cache
 
-  var results=[];
-  var keys=Object.keys(S.usedOrders);
-  for(var i=0;i<keys.length;i++){
-    var k=keys[i];
-    // ค้นหาทั้ง R- orders และ orders ปกติที่ตรงกับ query
-    if(k.toUpperCase().indexOf(q)!==-1){
-      results.push({order:k,info:S.usedOrders[k]});
-    }
-    if(results.length>=20)break;
-  }
+function loadReturns(){
+  showOverlay('กำลังโหลดรายการสินค้าคืน...');
+  gRun('getReturns',{}).then(function(r){
+    hideOverlay();
+    if(!r||!r.success){toast('⚠️ '+(r&&r.message||'โหลดไม่ได้'));return;}
+    returnData=r.returns||[];
+    renderReturns(returnData);
+  }).catch(function(e){hideOverlay();toast('❌ '+e.message);});
+}
 
-  if(!results.length){
-    box.innerHTML='<div class="text-xs text-slate-500 text-center py-3">ไม่พบข้อมูล</div>';
-    box.classList.remove('hidden');return;
-  }
-
+function renderReturns(list){
+  var isAdmin=S.user&&S.user.role==='admin';
   var h='';
-  results.forEach(function(r){
-    var info=r.info||{};
-    var isReturn=r.order.indexOf('R-')===0;
-    var borderColor=isReturn?'border-l-orange-500':'border-l-blue-500';
-    var noteHtml='';
-    if(info.note){
-      var noteColor=info.note.indexOf('สภาพดี')!==-1?'text-emerald-400':'text-red-400';
-      noteHtml='<div class="text-xs '+noteColor+' mt-1">📝 '+info.note+'</div>';
-    }
-    var videoBtn=info.fileId?'<button onclick="playVideo(\''+info.fileId+'\',\''+r.order+'\',\''+(info.packer||'')+'\',\''+(info.date||'')+'\',\''+(info.time||'')+'\')" class="ml-2 bg-blue-600 hover:bg-blue-500 text-xs px-3 py-1.5 rounded-lg flex-shrink-0">▶ ดูคลิป</button>':'';
+  if(!list.length){h='<tr><td colspan="6" class="py-8 text-center text-slate-500">ยังไม่มีรายการ</td></tr>';}
+  else list.forEach(function(r){
+    var sc,si;
+    if(r.status==='ตรวจสอบสินค้าแล้ว'){sc='text-emerald-400';si='✅';}
+    else if(r.status==='สูญหาย'){sc='text-red-400';si='🚨';}
+    else{sc='text-yellow-400';si='⏳';}
 
-    h+='<div class="bg-slate-800/80 rounded-xl px-3 py-2 border-l-4 '+borderColor+'">'
-      +'<div class="flex items-center justify-between">'
-      +'<div class="flex-1 min-w-0">'
-      +'<div class="flex items-center gap-2"><span class="text-xs '+(isReturn?'bg-orange-900/60 text-orange-300':'bg-blue-900/60 text-blue-300')+' px-2 py-0.5 rounded-full">'+(isReturn?'🔄 สินค้าคืน':'📦 แพคปกติ')+'</span>'
-      +'<span class="font-mono text-yellow-400 text-sm">'+r.order+'</span></div>'
-      +'<div class="text-xs text-slate-500 mt-1">'+(info.date||'-')+' '+(info.time||'')+' · 👤 '+(info.packer||'-')+' · ⏱ '+fmtDur(info.duration)+'</div>'
-      +noteHtml
-      +'</div>'
-      +videoBtn
-      +'</div></div>';
+    var noteColor=r.note&&r.note.indexOf('สภาพดี')!==-1?'text-emerald-400':(r.note&&r.note.indexOf('เสียหาย')!==-1?'text-red-400':'text-slate-500');
+    var videoBtn=r.videoFileId?'<button onclick="playVideo(\''+r.videoFileId+'\',\''+r.returnTrackingNo+'\',\'\',\'\',\'\')" class="text-blue-400 hover:underline text-xs">▶ ดูคลิป</button>':'<span class="text-slate-600">-</span>';
+
+    // ปุ่ม admin: แจ้งสูญหาย
+    var adminBtn='';
+    if(isAdmin&&r.status==='รอตรวจสอบสินค้าคืน'){
+      adminBtn=' <button onclick="doMarkLost(\''+r.returnTrackingNo+'\')" class="text-red-400 hover:underline text-xs ml-2">แจ้งสูญหาย</button>';
+    }
+
+    h+='<tr class="border-b border-slate-800">'
+      +'<td class="py-2 pr-3 text-slate-400 text-xs">'+(r.createdDate||'-')+'</td>'
+      +'<td class="py-2 pr-3 font-mono text-yellow-400">'+r.orderNumber+'</td>'
+      +'<td class="py-2 pr-3 font-mono text-blue-400">'+r.returnTrackingNo+'</td>'
+      +'<td class="py-2 pr-3"><span class="'+sc+' text-xs">'+si+' '+r.status+'</span></td>'
+      +'<td class="py-2 pr-3"><span class="'+noteColor+' text-xs">'+(r.note||'-')+'</span></td>'
+      +'<td class="py-2 whitespace-nowrap">'+videoBtn+adminBtn+'</td>'
+      +'</tr>';
   });
-  box.innerHTML=h;
-  box.classList.remove('hidden');
+  el('rt-tbody').innerHTML=h;
+}
+
+function filterReturns(){
+  var q=v('rt-search').toUpperCase();
+  if(!q){renderReturns(returnData);return;}
+  var filtered=returnData.filter(function(r){
+    return r.orderNumber.toUpperCase().indexOf(q)!==-1 || r.returnTrackingNo.toUpperCase().indexOf(q)!==-1;
+  });
+  renderReturns(filtered);
+}
+
+function doAddReturn(){
+  var order=v('rt-order'),tracking=v('rt-tracking');
+  if(!order||!tracking){showInline('rt-add-result','กรุณากรอกข้อมูลให้ครบ','err');return;}
+  gRun('addReturn',{orderNumber:order,returnTrackingNo:tracking}).then(function(r){
+    if(r.success){
+      showInline('rt-add-result','✅ เพิ่มรายการสำเร็จ — สถานะ: รอตรวจสอบสินค้าคืน','ok');
+      el('rt-order').value='';el('rt-tracking').value='';
+      loadReturns();
+    } else showInline('rt-add-result','❌ '+r.message,'err');
+  });
+}
+
+function doMarkLost(trackingNo){
+  if(!confirm('ยืนยันแจ้ง "'+trackingNo+'" เป็นสูญหาย?'))return;
+  gRun('updateReturn',{returnTrackingNo:trackingNo,status:'สูญหาย',note:'สินค้าสูญหาย — รอติดตามเคลม'}).then(function(r){
+    if(r.success){toast('🚨 แจ้งสูญหายแล้ว');loadReturns();}
+    else toast('❌ '+r.message);
+  });
+}
+
+// Auto-match: หลัง upload สินค้าคืนสำเร็จ → อัปเดต ReturnTracking อัตโนมัติ
+function autoMatchReturn(rawBarcode, note, fileId){
+  if(!rawBarcode)return;
+  gRun('updateReturn',{returnTrackingNo:rawBarcode, status:'ตรวจสอบสินค้าแล้ว', note:note, videoFileId:fileId}).then(function(r){
+    if(r.success) toast('🔄 จับคู่สินค้าคืนสำเร็จ: '+rawBarcode);
+  }).catch(function(){});
 }
 
 var videoBlobUrl = null; // เก็บ URL ชั่วคราว
@@ -941,6 +1073,8 @@ function uploadDone(driveData,info,dur,end,prod){
     setTimeout(function(){setUpload(false);showSuccess(logData);
       // เพิ่มเข้า cache พร้อมชื่อคนแพค
       if(S.orderNumber) S.usedOrders[S.orderNumber]={packer:S.user?S.user.displayName:'',date:new Date().toISOString().split('T')[0]};
+      // Auto-match สินค้าคืน → อัปเดต ReturnTracking อัตโนมัติ
+      if(S.mode==='return' && S.rawBarcode) autoMatchReturn(S.rawBarcode, prod, fid);
       S.uploading=false;S.orderNumber=null;S.trackingNumber=null;S.rawBarcode=null;
       el('bc-order').textContent='-';el('bc-tracking').textContent='-';
       
@@ -1175,6 +1309,88 @@ function doClearFolder(){
   gRun('setConfig',{key:'parentFolderId',value:''}).then(function(r){
     if(r.success){toast('✅ ล้างแล้ว — ใช้ My Drive');el('cfg-folder-id').value='';loadFolderConfig();}
   });
+}
+
+// ═══════════════════════════════════════
+// RETURN TRACKING — ติดตามสินค้าคืน
+// ═══════════════════════════════════════
+var returnData = []; // cache
+
+function loadReturns(){
+  gRun('getReturns',{}).then(function(r){
+    if(r&&r.success){returnData=r.returns||[];renderReturns();}
+  });
+}
+
+function renderReturns(){
+  var filter=el('rt-filter')?el('rt-filter').value:'';
+  var items=filter?returnData.filter(function(x){return x.status===filter;}):returnData;
+
+  // KPIs
+  var w=0,c=0,l=0;
+  returnData.forEach(function(x){
+    if(x.status==='รอตรวจสอบสินค้าคืน')w++;
+    else if(x.status==='ตรวจสอบสินค้าแล้ว')c++;
+    else if(x.status==='สูญหาย')l++;
+  });
+  el('rt-kpi-waiting').textContent=w;
+  el('rt-kpi-checked').textContent=c;
+  el('rt-kpi-lost').textContent=l;
+
+  // Table
+  var isAdmin=S.user&&S.user.role==='admin';
+  var h='';
+  if(!items.length) h='<tr><td colspan="6" class="py-8 text-center text-slate-500">ไม่มีข้อมูล</td></tr>';
+  else items.forEach(function(r){
+    var sc,badge;
+    if(r.status==='รอตรวจสอบสินค้าคืน'){sc='bg-yellow-900/60 text-yellow-300';badge='⏳ รอตรวจสอบ';}
+    else if(r.status==='ตรวจสอบสินค้าแล้ว'){sc='bg-emerald-900/60 text-emerald-300';badge='✅ ตรวจสอบแล้ว';}
+    else if(r.status==='สูญหาย'){sc='bg-red-900/60 text-red-300';badge='❌ สูญหาย';}
+    else{sc='bg-slate-700 text-slate-300';badge=r.status;}
+
+    var videoBtn=r.videoFileId?'<button onclick="playVideo(\''+r.videoFileId+'\',\''+r.returnTrackingNo+'\',\'\',\'\',\'\')" class="text-blue-400 hover:underline text-xs">▶ ดูคลิป</button>':'';
+    var adminBtns='';
+    if(isAdmin && r.status==='รอตรวจสอบสินค้าคืน'){
+      adminBtns='<button onclick="markReturnLost(\''+r.returnTrackingNo+'\')" class="text-red-400 hover:underline text-xs ml-1">แจ้งสูญหาย</button>';
+    }
+
+    h+='<tr class="border-b border-slate-800">'
+      +'<td class="py-2 pr-3 font-mono text-yellow-400">'+r.orderNumber+'</td>'
+      +'<td class="py-2 pr-3 font-mono text-blue-400">'+r.returnTrackingNo+'</td>'
+      +'<td class="py-2 pr-3"><span class="text-xs px-2 py-0.5 rounded-full '+sc+'">'+badge+'</span></td>'
+      +'<td class="py-2 pr-3 text-slate-400">'+(r.note||'-')+'</td>'
+      +'<td class="py-2 pr-3 text-slate-500">'+r.createdDate+'</td>'
+      +'<td class="py-2 whitespace-nowrap">'+videoBtn+adminBtns+'</td>'
+      +'</tr>';
+  });
+  el('rt-tbody').innerHTML=h;
+}
+
+function doAddReturn(){
+  var o=v('rt-order'),t=v('rt-tracking');
+  if(!o||!t){showInline('rt-add-result','กรอกให้ครบ','err');return;}
+  gRun('addReturn',{orderNumber:o,returnTrackingNo:t}).then(function(r){
+    if(r.success){
+      showInline('rt-add-result','✅ เพิ่มสำเร็จ — สถานะ: รอตรวจสอบ','ok');
+      el('rt-order').value='';el('rt-tracking').value='';
+      loadReturns();
+    } else showInline('rt-add-result','❌ '+r.message,'err');
+  });
+}
+
+function markReturnLost(trackingNo){
+  if(!confirm('ยืนยันแจ้งสูญหาย: '+trackingNo+'?'))return;
+  gRun('updateReturn',{returnTrackingNo:trackingNo,status:'สูญหาย',note:'แอดมินแจ้งสูญหาย'}).then(function(r){
+    if(r.success){toast('✅ อัปเดตสำเร็จ');loadReturns();}
+    else toast('❌ '+r.message);
+  });
+}
+
+// Auto-match: หลัง upload วิดีโอสินค้าคืน → เช็คว่าตรงกับเลขพัสดุคืนที่กรอกไว้ไหม
+function autoMatchReturn(rawBarcode, note, videoFileId){
+  gRun('updateReturn',{returnTrackingNo:rawBarcode,status:'ตรวจสอบสินค้าแล้ว',note:note,videoFileId:videoFileId}).then(function(r){
+    if(r&&r.success) toast('🔄 จับคู่สินค้าคืนสำเร็จ: '+rawBarcode);
+  }).catch(function(){});
 }
 
 // ═══════════════════════════════════════
