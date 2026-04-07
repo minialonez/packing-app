@@ -56,8 +56,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="flex items-center gap-3"><span class="text-2xl">📦</span><div><div class="font-bold text-sm">DoByTop</div><div id="nav-packer" class="text-slate-400 text-xs">-</div></div></div>
 <div class="flex items-center gap-1">
 <button onclick="showScreen('dashboard')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📊 รายงาน</button>
-<button onclick="showScreen('returns')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🔄 สินค้าคืน</button>
-<button onclick="showScreen('returns')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🔄 สินค้าคืน</button>
+<button onclick="showScreen('returns')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📋 ติดตามคืน</button>
 <button id="admin-nav-btn" onclick="showScreen('admin')" class="hidden text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">⚙️ จัดการ</button>
 <button onclick="doLogout()" class="text-slate-400 hover:text-red-400 hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">ออก</button>
 </div></nav>
@@ -109,8 +108,8 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="flex items-center justify-between">
 <span class="text-xs text-slate-400">โหมดการทำงาน</span>
 <div class="flex items-center gap-2">
-<button id="btn-mode-pack" onclick="setMode('pack')" class="text-xs px-3 py-1.5 rounded-lg font-bold bg-emerald-700 text-white">📦 แพคสินค้า</button>
-<button id="btn-mode-return" onclick="setMode('return')" class="text-xs px-3 py-1.5 rounded-lg font-bold bg-slate-700 text-slate-400">🔄 สินค้าคืน</button>
+<button id="btn-mode-pack" onclick="setMode('pack')" class="text-xs px-3 py-1.5 rounded-lg font-bold bg-emerald-700 text-white">📦 แพคปกติ</button>
+<button id="btn-mode-return" onclick="setMode('return')" class="text-xs px-3 py-1.5 rounded-lg font-bold bg-slate-700 text-slate-400">🔄 ถ่ายรับคืน</button>
 </div>
 </div>
 <div id="mode-return-badge" class="hidden mt-2 text-center text-xs text-orange-400 bg-orange-950/40 rounded-lg py-1">🔄 โหมดสินค้าคืน — เลขจะเติม R- นำหน้าอัตโนมัติ</div>
