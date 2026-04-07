@@ -164,6 +164,21 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div id="search-results" class="hidden space-y-2 max-h-64 overflow-y-auto"></div>
 </div>
 
+<!-- ติดตามสินค้าคืน -->
+<div class="grad-card rounded-2xl p-3">
+<div class="flex items-center gap-2 mb-2">
+<span class="text-sm">🔄</span>
+<span class="text-xs text-slate-400 uppercase tracking-wider">ติดตามสินค้าคืน</span>
+</div>
+<div class="flex items-center gap-2 mb-2">
+<input id="return-search" type="text" placeholder="กรอกเลขคำสั่งซื้อ หรือเลขพัสดุตีคืน..." autocomplete="off"
+  class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-orange-500"
+  oninput="doReturnSearch()" onkeydown="if(event.key==='Enter')doReturnSearch()">
+<button onclick="doReturnSearch()" class="bg-orange-600 hover:bg-orange-500 text-xs px-3 py-2 rounded-lg font-medium">ตรวจสอบ</button>
+</div>
+<div id="return-search-results" class="hidden space-y-2"></div>
+</div>
+
 </div></div>
 
 <!-- DASHBOARD -->
@@ -297,6 +312,29 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 </div>
 </div>
 
+<!-- RETURN NOTE POPUP -->
+<div id="return-note-popup" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[58]">
+<div class="bg-slate-900 border-2 border-orange-500 rounded-3xl p-8 max-w-md mx-4 text-center shadow-2xl">
+<div class="text-5xl mb-3">🔄</div>
+<div class="text-lg font-bold text-orange-400 mb-2">บันทึกสินค้าคืน</div>
+<div class="bg-slate-800 rounded-xl p-3 mb-4">
+<div class="text-xs text-slate-500">เลขออเดอร์</div>
+<div id="return-note-order" class="font-mono text-yellow-400 font-bold mt-1">-</div>
+</div>
+<div class="text-left mb-4">
+<label class="text-xs text-slate-400 mb-2 block">สภาพสินค้าที่ได้รับคืน</label>
+<select id="return-note-select" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500">
+<option value="รับสินค้าคืนในสภาพดี">✅ รับสินค้าคืนในสภาพดี</option>
+<option value="สินค้าแตก/เสียหายจากการขนส่ง">❌ สินค้าแตก/เสียหายจากการขนส่ง</option>
+</select>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<button onclick="cancelReturnNote()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-3 rounded-xl text-sm">ยกเลิก</button>
+<button onclick="confirmReturnNote()" class="bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-xl text-sm">ยืนยันบันทึก</button>
+</div>
+</div>
+</div>
+
 <!-- DUPLICATE WARNING POPUP -->
 <div id="dup-popup" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60]" onclick="closeDupPopup()">
 <div class="bg-slate-900 border-2 border-red-500 rounded-3xl p-8 max-w-md mx-4 text-center shadow-2xl" onclick="event.stopPropagation()">
@@ -354,7 +392,7 @@ function gRun(action, params) {
 // STATE
 // ═══════════════════════════════════════
 var S = { user:null, recording:false, recorder:null, chunks:[], stream:null, t0:null, timerIv:null,
-  orderNumber:null, trackingNumber:null, rawBarcode:null, mode:'pack', charts:{}, uploading:false, usedOrders:{} };
+  orderNumber:null, trackingNumber:null, rawBarcode:null, mode:'pack', charts:{}, uploading:false, usedOrders:{}, pendingUpload:null };
 
 // ═══════════════════════════════════════
 // SCREEN ROUTER
@@ -561,7 +599,21 @@ function closeDupPopup(){
 function loadUsedOrders(){
   gRun('getAllOrders',{}).then(function(r){
     if(r&&r.success&&r.orders){
-      S.usedOrders=r.orders; // {orderNumber: {packer:'ชื่อ', date:'2026-04-04'}}
+      S.usedOrders={};
+      var keys=Object.keys(r.orders);
+      for(var i=0;i<keys.length;i++){
+        var k=keys[i], info=r.orders[k];
+        // เก็บทั้ง barcode เต็ม (เช่น "TH123-TH123" หรือ "TH123")
+        S.usedOrders[k]=info;
+        // เก็บแค่ส่วนแรกด้วย (backward compat: "TH123-TH123" → "TH123")
+        var firstPart=k.split('-')[0];
+        if(firstPart && firstPart!==k && !S.usedOrders[firstPart]) S.usedOrders[firstPart]=info;
+        // สำหรับ R- orders: "R-TH123-R-TH123" → เก็บ "R-TH123" ด้วย
+        if(k.indexOf('R-')===0){
+          var rParts=k.match(/^(R-[^-]+)/);
+          if(rParts && rParts[1] && !S.usedOrders[rParts[1]]) S.usedOrders[rParts[1]]=info;
+        }
+      }
     }
   }).catch(function(){});
 }
@@ -623,6 +675,57 @@ function doSearch(){
     box.innerHTML=h;
     box.classList.remove('hidden');
   },200);
+}
+
+// ═══════════════════════════════════════
+// ติดตามสินค้าคืน — ค้นจาก cache (ทันที)
+// ═══════════════════════════════════════
+function doReturnSearch(){
+  var q=v('return-search').toUpperCase();
+  var box=el('return-search-results');
+  if(!q||q.length<3){box.classList.add('hidden');box.innerHTML='';return;}
+
+  var results=[];
+  var keys=Object.keys(S.usedOrders);
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i];
+    // ค้นหาทั้ง R- orders และ orders ปกติที่ตรงกับ query
+    if(k.toUpperCase().indexOf(q)!==-1){
+      results.push({order:k,info:S.usedOrders[k]});
+    }
+    if(results.length>=20)break;
+  }
+
+  if(!results.length){
+    box.innerHTML='<div class="text-xs text-slate-500 text-center py-3">ไม่พบข้อมูล</div>';
+    box.classList.remove('hidden');return;
+  }
+
+  var h='';
+  results.forEach(function(r){
+    var info=r.info||{};
+    var isReturn=r.order.indexOf('R-')===0;
+    var borderColor=isReturn?'border-l-orange-500':'border-l-blue-500';
+    var noteHtml='';
+    if(info.note){
+      var noteColor=info.note.indexOf('สภาพดี')!==-1?'text-emerald-400':'text-red-400';
+      noteHtml='<div class="text-xs '+noteColor+' mt-1">📝 '+info.note+'</div>';
+    }
+    var videoBtn=info.fileId?'<button onclick="playVideo(\''+info.fileId+'\',\''+r.order+'\',\''+(info.packer||'')+'\',\''+(info.date||'')+'\',\''+(info.time||'')+'\')" class="ml-2 bg-blue-600 hover:bg-blue-500 text-xs px-3 py-1.5 rounded-lg flex-shrink-0">▶ ดูคลิป</button>':'';
+
+    h+='<div class="bg-slate-800/80 rounded-xl px-3 py-2 border-l-4 '+borderColor+'">'
+      +'<div class="flex items-center justify-between">'
+      +'<div class="flex-1 min-w-0">'
+      +'<div class="flex items-center gap-2"><span class="text-xs '+(isReturn?'bg-orange-900/60 text-orange-300':'bg-blue-900/60 text-blue-300')+' px-2 py-0.5 rounded-full">'+(isReturn?'🔄 สินค้าคืน':'📦 แพคปกติ')+'</span>'
+      +'<span class="font-mono text-yellow-400 text-sm">'+r.order+'</span></div>'
+      +'<div class="text-xs text-slate-500 mt-1">'+(info.date||'-')+' '+(info.time||'')+' · 👤 '+(info.packer||'-')+' · ⏱ '+fmtDur(info.duration)+'</div>'
+      +noteHtml
+      +'</div>'
+      +videoBtn
+      +'</div></div>';
+  });
+  box.innerHTML=h;
+  box.classList.remove('hidden');
 }
 
 var videoBlobUrl = null; // เก็บ URL ชั่วคราว
@@ -749,11 +852,35 @@ function cancelRecording(){
 function onRecordStop() {
   var end=new Date(),dur=Math.round((end-S.t0)/1000);
   var mime=S.recorder.mimeType,ext=mime.indexOf('mp4')!==-1?'.mp4':'.webm';
-  var fn=(S.orderNumber||'NO').replace(/[^a-zA-Z0-9_-]/g,'')+'-'+(S.trackingNumber||'NO').replace(/[^a-zA-Z0-9_-]/g,'')+ext;
+  var fn=(S.orderNumber||'NO').replace(/[^a-zA-Z0-9_-]/g,'')+ext;
   if(!S.chunks.length){toast('❌ ไม่มีข้อมูลวิดีโอ');return;}
   var blob=new Blob(S.chunks,{type:mime});
   el('info-end').textContent=fmtTime(end);el('info-dur').textContent=fmtDur(dur);
-  doUpload(blob,fn,dur,end,'');
+
+  if(S.mode==='return'){
+    // โหมดสินค้าคืน → แสดง popup เลือกสภาพสินค้าก่อน upload
+    S.pendingUpload={blob:blob,fn:fn,dur:dur,end:end};
+    el('return-note-order').textContent=S.orderNumber||'-';
+    el('return-note-select').value='รับสินค้าคืนในสภาพดี';
+    el('return-note-popup').classList.remove('hidden');
+  } else {
+    doUpload(blob,fn,dur,end,'');
+  }
+}
+
+function confirmReturnNote(){
+  var note=el('return-note-select').value;
+  el('return-note-popup').classList.add('hidden');
+  if(S.pendingUpload){
+    var p=S.pendingUpload;
+    doUpload(p.blob,p.fn,p.dur,p.end,note);
+    S.pendingUpload=null;
+  }
+}
+function cancelReturnNote(){
+  el('return-note-popup').classList.add('hidden');
+  S.pendingUpload=null;
+  cancelRecording();
 }
 
 // ═══════════════════════════════════════
@@ -807,7 +934,7 @@ function uploadDone(driveData,info,dur,end,prod){
   setUpload(true,90,'บันทึกข้อมูล...');
   var fid=driveData.id||'';
   var logData={date:info.date,startTime:S.t0?fmtTime(S.t0):'-',endTime:fmtTime(end),durationSec:dur,
-    packer:S.user.displayName,orderNumber:S.orderNumber||'',trackingNumber:S.trackingNumber||'',
+    packer:S.user.displayName,orderNumber:S.orderNumber||'',trackingNumber:'',
     products:prod,fileId:fid,fileURL:fid?'https://drive.google.com/file/d/'+fid+'/view':''};
   return gRun('savePackingLog',logData).then(function(){
     setUpload(true,100,'✅ สำเร็จ!');
