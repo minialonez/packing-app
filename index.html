@@ -278,6 +278,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <button onclick="showScreen('record')" class="text-slate-400 hover:text-white text-sm">← กลับ</button>
 <span class="font-bold text-sm">🔄 ติดตามสินค้าคืน</span>
 </div>
+<button onclick="doMatchAll()" class="text-xs bg-blue-700 hover:bg-blue-600 px-3 py-1.5 rounded-lg text-white">🔗 จับคู่ทั้งหมด</button>
 <button onclick="loadReturns()" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-slate-300">🔄 รีเฟรช</button>
 </nav>
 <div class="flex-1 overflow-y-auto p-4 max-w-5xl mx-auto w-full space-y-4">
@@ -867,6 +868,15 @@ function doMatchReturn(trackingNo){
   }).catch(function(e){hideOverlay();toast('❌ '+e.message);});
 }
 
+function doMatchAll(){
+  showOverlay('กำลังจับคู่ทั้งหมด...');
+  gRun('matchAllReturns',{}).then(function(r){
+    hideOverlay();
+    if(r.success){toast('✅ '+r.message);loadReturns();}
+    else toast('❌ '+r.message);
+  }).catch(function(e){hideOverlay();toast('❌ '+e.message);});
+}
+
 function autoMatchReturn(rawBarcode, note, fileId){
   if(!rawBarcode)return;
   gRun('updateReturn',{returnTrackingNo:rawBarcode,status:'ตรวจสอบสินค้าแล้ว',note:note,videoFileId:fileId}).then(function(r){
@@ -956,7 +966,12 @@ function startRecordingManual(){
   el('bc-order').textContent=S.orderNumber;el('bc-tracking').textContent='รอยิง...';
   startRecording();
 }
-function stopRecordingManual(){if(!S.trackingNumber)S.trackingNumber='MANUAL';stopRecording();}
+function stopRecordingManual(){
+  if(!S.recording)return;
+  S.trackingNumber=S.orderNumber||'MANUAL';
+  el('bc-tracking').textContent=S.trackingNumber;
+  toast('⏹ หยุดบันทึก'); stopRecording();
+}
 
 function startRecording() {
   if(!S.stream){
