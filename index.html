@@ -396,6 +396,8 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="flex items-center justify-between mb-2">
 <span id="video-title" class="text-sm text-slate-300 font-mono truncate"></span>
 <div class="flex items-center gap-2">
+<button id="video-share-btn" onclick="copyShareLink()" class="text-xs text-slate-500 hover:text-emerald-400">🔗 แชร์ลิงก์</button>
+<a id="video-dl-btn" href="#" target="_blank" class="text-xs text-slate-500 hover:text-blue-400">⬇ ดาวน์โหลด</a>
 <a id="video-drive-link" href="#" target="_blank" class="text-xs text-slate-500 hover:text-blue-400">เปิดใน Drive</a>
 <button onclick="closeVideo()" class="text-slate-400 hover:text-white text-lg px-2">✕</button>
 </div>
@@ -765,13 +767,21 @@ function doSearch(){
     results.forEach(function(r){
       var info=r.info||{};
       var hasVideo=info.fileId?true:false;
+      var btns='';
+      if(hasVideo){
+        btns='<div class="flex items-center gap-1 ml-2 flex-shrink-0">'
+          +'<button onclick="playVideo(\''+info.fileId+'\',\''+r.order+'\',\''+(info.packer||'')+'\',\''+(info.date||'')+'\',\''+(info.time||'')+'\')" class="bg-blue-600 hover:bg-blue-500 text-xs px-2 py-1.5 rounded-lg">▶</button>'
+          +'<a href="https://drive.google.com/uc?export=download&id='+info.fileId+'" target="_blank" class="bg-slate-700 hover:bg-slate-600 text-xs px-2 py-1.5 rounded-lg">⬇</a>'
+          +'<button onclick="copyShareLinkDirect(\''+info.fileId+'\')" class="bg-slate-700 hover:bg-slate-600 text-xs px-2 py-1.5 rounded-lg">🔗</button>'
+          +'</div>';
+      } else { btns='<span class="ml-2 text-xs text-slate-600">ไม่มีคลิป</span>'; }
       h+='<div class="flex items-center justify-between bg-slate-800/80 rounded-xl px-3 py-2">'
         +'<div class="flex-1 min-w-0">'
         +'<div class="font-mono text-yellow-400 text-sm truncate">'+r.order+'</div>'
         +'<div class="text-xs text-slate-500">'+( info.date||'-')+' '+( info.time||'')+' · '+(info.packer||'-')
         +' · '+fmtDur(info.duration)+'</div>'
         +'</div>'
-        +(hasVideo?'<button onclick="playVideo(\''+info.fileId+'\',\''+r.order+'\',\''+(info.packer||'')+'\',\''+(info.date||'')+'\',\''+(info.time||'')+'\')" class="ml-2 bg-blue-600 hover:bg-blue-500 text-xs px-3 py-1.5 rounded-lg flex-shrink-0">▶ ดูคลิป</button>':'<span class="ml-2 text-xs text-slate-600">ไม่มีคลิป</span>')
+        +btns
         +'</div>';
     });
     box.innerHTML=h;
@@ -821,7 +831,9 @@ function renderReturns(){
     else{sc='bg-slate-700 text-slate-300';badge=r.status;}
 
     var noteColor=r.note&&r.note.indexOf('สภาพดี')!==-1?'text-emerald-400':(r.note&&r.note.indexOf('เสียหาย')!==-1?'text-red-400':'text-slate-500');
-    var videoBtn=r.videoFileId?'<button onclick="playVideo(\''+r.videoFileId+'\',\''+r.returnTrackingNo+'\',\'\',\'\',\'\')" class="text-blue-400 hover:underline text-xs">▶ ดูคลิป</button>':'';
+    var videoBtn=r.videoFileId?'<button onclick="playVideo(\''+r.videoFileId+'\',\''+r.returnTrackingNo+'\',\'\',\'\',\'\')" class="text-blue-400 hover:underline text-xs">▶</button>'
+      +' <a href="https://drive.google.com/uc?export=download&id='+r.videoFileId+'" target="_blank" class="text-slate-400 hover:text-blue-400 text-xs">⬇</a>'
+      +' <button onclick="copyShareLinkDirect(\''+r.videoFileId+'\')" class="text-slate-400 hover:text-emerald-400 text-xs">🔗</button>':'';
     var adminBtns='';
     if(isAdmin && r.status==='รอตรวจสอบสินค้าคืน'){
       adminBtns='<button onclick="doMatchReturn(\''+r.returnTrackingNo+'\')" class="text-blue-400 hover:underline text-xs ml-1">🔗 จับคู่</button>';
@@ -888,10 +900,14 @@ function autoMatchReturn(rawBarcode, note, fileId){
 
 var videoBlobUrl = null; // เก็บ URL ชั่วคราว
 
+var currentVideoFileId = null;
+
 function playVideo(fileId,order,packer,date,time){
+  currentVideoFileId = fileId;
   el('video-title').textContent=order;
   el('video-info').innerHTML='<div>📋 '+order+'</div><div>👤 '+packer+'</div><div>📅 '+date+' '+time+'</div>';
   el('video-drive-link').href='https://drive.google.com/file/d/'+fileId+'/view';
+  el('video-dl-btn').href='https://drive.google.com/uc?export=download&id='+fileId;
   el('video-player').classList.add('hidden');
   el('video-loading').classList.remove('hidden');
   el('video-load-text').textContent='กำลังขอ token...';
@@ -955,9 +971,24 @@ function closeVideo(){
   el('video-popup').classList.add('hidden');
   var player=el('video-player');
   player.pause(); player.src='';
-  // ลบไฟล์จากหน่วยความจำ
   if(videoBlobUrl){URL.revokeObjectURL(videoBlobUrl);videoBlobUrl=null;}
+  currentVideoFileId=null;
   focusScan();
+}
+
+function copyShareLink(){
+  if(!currentVideoFileId){toast('⚠️ ไม่มีวิดีโอ');return;}
+  var link='https://drive.google.com/file/d/'+currentVideoFileId+'/view?usp=sharing';
+  navigator.clipboard.writeText(link).then(function(){
+    toast('✅ คัดลอกลิงก์แล้ว — ส่งให้ลูกค้าได้เลย');
+  }).catch(function(){prompt('คัดลอกลิงก์นี้:',link);});
+}
+
+function copyShareLinkDirect(fileId){
+  var link='https://drive.google.com/file/d/'+fileId+'/view?usp=sharing';
+  navigator.clipboard.writeText(link).then(function(){
+    toast('✅ คัดลอกลิงก์แล้ว');
+  }).catch(function(){prompt('คัดลอกลิงก์นี้:',link);});
 }
 
 // ═══════════════════════════════════════
@@ -1243,7 +1274,9 @@ function renderStats(d) {
   if(!rows.length)th='<tr><td colspan="7" class="py-8 text-center text-slate-500">ไม่มีข้อมูล</td></tr>';
   else rows.forEach(function(l){
     var vl='-';
-    if(l.fileId){vl='<button onclick="playVideo(\''+l.fileId+'\',\''+(l.orderNumber||'-')+'\',\''+(l.packer||'')+'\',\''+(l.date||'')+'\',\''+(l.startTime||'')+'\')" class="text-blue-400 hover:underline text-xs">▶ ดูคลิป</button>';}
+    if(l.fileId){vl='<button onclick="playVideo(\''+l.fileId+'\',\''+(l.orderNumber||'-')+'\',\''+(l.packer||'')+'\',\''+(l.date||'')+'\',\''+(l.startTime||'')+'\')" class="text-blue-400 hover:underline text-xs">▶</button>'
+      +' <a href="https://drive.google.com/uc?export=download&id='+l.fileId+'" target="_blank" class="text-slate-400 hover:text-blue-400 text-xs">⬇</a>'
+      +' <button onclick="copyShareLinkDirect(\''+l.fileId+'\')" class="text-slate-400 hover:text-emerald-400 text-xs">🔗</button>';}
     th+='<tr class="border-b border-slate-800"><td class="py-2 pr-3 text-slate-400">'+(l.date||'-')+'</td><td class="py-2 pr-3 font-mono">'+(l.startTime||'-')+'</td><td class="py-2 pr-3">'+(l.packer||'-')+'</td><td class="py-2 pr-3 font-mono text-emerald-400">'+fmtDur(l.durationSec)+'</td><td class="py-2 pr-3 text-yellow-400 font-mono">'+(l.orderNumber||'-')+'</td><td class="py-2 pr-3 text-blue-400 font-mono">'+(l.trackingNumber||'-')+'</td><td class="py-2 whitespace-nowrap">'+vl+'</td></tr>';
   });
   el('logs-tbody').innerHTML=th;
