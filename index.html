@@ -58,6 +58,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <button onclick="showScreen('dashboard')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📊 รายงาน</button>
 <button onclick="showScreen('returns')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📋 ติดตามคืน</button>
 <button onclick="showScreen('claims')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🛠️ เคลม</button>
+<button onclick="showScreen('tax')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📄 ใบกำกับ</button>
 <button onclick="toggleNotifPanel()" class="relative text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">
 🔔<span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">0</span>
 </button>
@@ -488,9 +489,10 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 
 <!-- Tab buttons -->
 <div class="max-w-2xl mx-auto px-4 pt-4">
-<div class="grid grid-cols-2 gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1">
-<button id="tab-btn-claim" onclick="switchTab('claim')" class="py-2.5 rounded-lg text-sm font-semibold transition">🛠️ แจ้งเคลม</button>
-<button id="tab-btn-track" onclick="switchTab('track')" class="py-2.5 rounded-lg text-sm font-semibold transition">📦 เช็คสถานะ</button>
+<div class="grid grid-cols-3 gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1">
+<button id="tab-btn-claim" onclick="switchTab('claim')" class="py-2.5 rounded-lg text-xs font-semibold transition">🛠️ แจ้งเคลม</button>
+<button id="tab-btn-tax" onclick="switchTab('tax')" class="py-2.5 rounded-lg text-xs font-semibold transition">📄 ใบกำกับภาษี</button>
+<button id="tab-btn-track" onclick="switchTab('track')" class="py-2.5 rounded-lg text-xs font-semibold transition">📦 เช็คสถานะ</button>
 </div>
 </div>
 
@@ -595,6 +597,93 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 </div>
 </div>
 
+<!-- ── Tab: ใบกำกับภาษี ── -->
+<div id="tab-tax" class="hidden max-w-2xl mx-auto p-4 pb-20">
+<div id="tax-success" class="hidden grad-card rounded-2xl p-8 text-center mb-4">
+<div class="text-6xl mb-3">✅</div>
+<div class="text-xl font-bold mb-2">ส่งคำขอใบกำกับภาษีสำเร็จ</div>
+<div class="text-slate-400 text-sm mb-4">บันทึกรหัสไว้ตรวจสอบสถานะ</div>
+<div class="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-4">
+<div class="text-xs text-slate-400 mb-1">รหัสติดตาม</div>
+<div id="tax-success-code" class="text-2xl font-mono font-bold text-blue-400"></div>
+</div>
+<button onclick="goToTrackAfterTax()" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl text-sm font-semibold">ไปเช็คสถานะ</button>
+</div>
+
+<div id="tax-form-card" class="grad-card rounded-2xl p-5 space-y-3">
+<div id="tax-err" class="hidden bg-red-950/60 border border-red-700/50 text-red-300 px-4 py-3 rounded-xl text-sm"></div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">ประเภทผู้เสียภาษี *</label>
+<div class="grid grid-cols-2 gap-2 mt-1">
+<button type="button" id="tp-individual" onclick="selectTaxpayerType('individual')" class="py-3 rounded-xl text-sm font-semibold border border-slate-600 bg-slate-800 hover:bg-slate-700 transition">👤 บุคคลธรรมดา</button>
+<button type="button" id="tp-corporate" onclick="selectTaxpayerType('corporate')" class="py-3 rounded-xl text-sm font-semibold border border-slate-600 bg-slate-800 hover:bg-slate-700 transition">🏢 นิติบุคคล</button>
+</div>
+</div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">เลขคำสั่งซื้อ *</label>
+<input id="tf-order" type="text" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white">
+</div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">เลขประจำตัวผู้เสียภาษี * (13 หลัก)</label>
+<div class="flex gap-2 mt-1">
+<input id="tf-taxid" type="text" inputmode="numeric" maxlength="13" placeholder="0123456789012" class="flex-1 bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white font-mono" oninput="this.value=this.value.replace(/\D/g,'')">
+<button id="tf-lookup-btn" type="button" onclick="lookupCompanyInfo()" class="hidden bg-indigo-600 hover:bg-indigo-500 px-4 rounded-xl text-xs font-semibold">🔎 ดึงข้อมูล</button>
+</div>
+</div>
+
+<!-- Individual fields -->
+<div id="tf-individual-fields" class="hidden">
+<label class="text-xs text-slate-400 uppercase">ชื่อ-นามสกุล *</label>
+<input id="tf-name" type="text" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white">
+</div>
+
+<!-- Corporate fields -->
+<div id="tf-corporate-fields" class="hidden">
+<label class="text-xs text-slate-400 uppercase">ชื่อบริษัท / ห้างหุ้นส่วน *</label>
+<input id="tf-company" type="text" placeholder="เช่น บริษัท เอบีซี จำกัด" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white">
+</div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">ที่อยู่ *</label>
+<textarea id="tf-address" rows="2" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white" placeholder="บ้านเลขที่ ถนน ตำบล อำเภอ จังหวัด"></textarea>
+</div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">รหัสไปรษณีย์ * (5 หลัก)</label>
+<input id="tf-zip" type="text" inputmode="numeric" maxlength="5" placeholder="10100" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white font-mono" oninput="this.value=this.value.replace(/\D/g,'')">
+</div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">เบอร์โทรศัพท์มือถือ * (10 หลัก)</label>
+<input id="tf-phone" type="tel" inputmode="numeric" maxlength="10" placeholder="0812345678" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white text-center text-xl font-mono tracking-widest" oninput="this.value=this.value.replace(/\D/g,'')">
+<div class="mt-3 grid grid-cols-3 gap-2 max-w-xs mx-auto">
+<button type="button" onclick="taxPhoneKey('1')" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-600 rounded-xl py-3 text-xl font-bold transition active:scale-95">1</button>
+<button type="button" onclick="taxPhoneKey('2')" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-600 rounded-xl py-3 text-xl font-bold transition active:scale-95">2</button>
+<button type="button" onclick="taxPhoneKey('3')" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-600 rounded-xl py-3 text-xl font-bold transition active:scale-95">3</button>
+<button type="button" onclick="taxPhoneKey('4')" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-600 rounded-xl py-3 text-xl font-bold transition active:scale-95">4</button>
+<button type="button" onclick="taxPhoneKey('5')" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-600 rounded-xl py-3 text-xl font-bold transition active:scale-95">5</button>
+<button type="button" onclick="taxPhoneKey('6')" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-600 rounded-xl py-3 text-xl font-bold transition active:scale-95">6</button>
+<button type="button" onclick="taxPhoneKey('7')" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-600 rounded-xl py-3 text-xl font-bold transition active:scale-95">7</button>
+<button type="button" onclick="taxPhoneKey('8')" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-600 rounded-xl py-3 text-xl font-bold transition active:scale-95">8</button>
+<button type="button" onclick="taxPhoneKey('9')" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-600 rounded-xl py-3 text-xl font-bold transition active:scale-95">9</button>
+<button type="button" onclick="taxPhoneClear()" class="bg-slate-700 hover:bg-red-700 active:bg-red-800 border border-slate-600 rounded-xl py-3 text-sm font-semibold text-slate-300 transition active:scale-95">ล้าง</button>
+<button type="button" onclick="taxPhoneKey('0')" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-600 rounded-xl py-3 text-xl font-bold transition active:scale-95">0</button>
+<button type="button" onclick="taxPhoneBackspace()" class="bg-slate-700 hover:bg-slate-600 active:bg-slate-500 border border-slate-600 rounded-xl py-3 text-xl font-bold text-slate-300 transition active:scale-95">⌫</button>
+</div>
+</div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">อีเมล *</label>
+<input id="tf-email" type="email" placeholder="customer@example.com" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white">
+</div>
+
+<button id="tf-submit-btn" onclick="submitTaxInvoice()" class="w-full bg-blue-600 hover:bg-blue-500 font-semibold py-3 rounded-xl mt-3">ส่งคำขอใบกำกับภาษี</button>
+</div>
+</div>
+
 <!-- ── Tab 2: Track status ── -->
 <div id="tab-track" class="hidden max-w-2xl mx-auto p-4 pb-20">
 <div class="grad-card rounded-2xl p-5 mb-4">
@@ -634,6 +723,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="flex items-center gap-1">
 <button onclick="showScreen('dashboard')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📊 รายงาน</button>
 <button onclick="showScreen('returns')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📋 ติดตามคืน</button>
+<button onclick="showScreen('tax')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📄 ใบกำกับ</button>
 <button onclick="toggleNotifPanel()" class="relative text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">
 🔔<span id="notif-badge-c" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">0</span>
 </button>
@@ -661,6 +751,48 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <button onclick="closeClaimModal()" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
 </div>
 <div id="claim-modal-body" class="p-5"></div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SCREEN: TAX INVOICES (Admin/Staff) -->
+<!-- ═══════════════════════════════════════ -->
+<div id="screen-tax" class="screen min-h-screen">
+<nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<button onclick="showScreen('record')" class="text-slate-400 hover:text-white text-sm">← กลับ</button>
+<div class="flex items-center gap-2"><span class="text-2xl">📄</span><div><div class="font-bold text-sm">จัดการใบกำกับภาษี</div></div></div>
+</div>
+<div class="flex items-center gap-1">
+<button onclick="showScreen('claims')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🛠️ เคลม</button>
+<button onclick="toggleNotifPanel()" class="relative text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">
+🔔<span id="notif-badge-t" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">0</span>
+</button>
+<button onclick="doLogout()" class="text-slate-400 hover:text-red-400 hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">ออก</button>
+</div></nav>
+
+<div class="max-w-7xl mx-auto p-4">
+<div class="flex items-center gap-3 mb-4 flex-wrap">
+<input id="tx-search" type="text" placeholder="ค้นหา: ชื่อ/เบอร์/ออเดอร์/Tax Code" class="flex-1 min-w-48 bg-slate-800 border border-slate-600 rounded-xl px-4 py-2.5 text-white text-sm" oninput="renderTaxList()">
+<select id="tx-filter-status" class="bg-slate-800 border border-slate-600 rounded-xl px-3 py-2.5 text-white text-sm" onchange="renderTaxList()">
+<option value="">ทุกสถานะ</option>
+<option value="รอออกใบกำกับ">รอออกใบกำกับ</option>
+<option value="ออกให้แล้ว">ออกให้แล้ว</option>
+</select>
+<button onclick="loadTaxInvoices()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2.5 rounded-xl text-sm">🔄 รีเฟรช</button>
+</div>
+<div id="tx-results" class="space-y-2"></div>
+</div>
+</div>
+
+<!-- Tax Invoice Modal -->
+<div id="tax-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 overflow-y-auto p-4">
+<div class="max-w-2xl mx-auto my-8 bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden">
+<div class="flex items-center justify-between px-5 py-3 border-b border-slate-800">
+<div class="font-bold">รายละเอียดใบกำกับภาษี</div>
+<button onclick="closeTaxModal()" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+</div>
+<div id="tax-modal-body" class="p-5"></div>
 </div>
 </div>
 
@@ -825,11 +957,14 @@ function goPage(page) {
 }
 function initPage() {
   var page = getQueryParam('page');
-  if (page === 'claim' || page === 'track') {
+  if (page === 'claim' || page === 'track' || page === 'customer' || page === 'tax') {
     showScreen('customer');
     loadCarriersIntoSelect('cf-carrier');
-    // เริ่มที่ tab ที่ match กับ URL (default=claim)
-    switchTab(page === 'track' ? 'track' : 'claim', false);
+    // เริ่มที่ tab ที่ match กับ URL
+    var startTab = 'claim';
+    if(page === 'track') startTab = 'track';
+    else if(page === 'tax') startTab = 'tax';
+    switchTab(startTab, false);
     return;
   }
   // default → login (หรือ auto-restore)
@@ -841,29 +976,34 @@ initPage();
 // TAB SWITCHER (สำหรับหน้า customer)
 // ═══════════════════════════════════════
 function switchTab(tab, updateUrl) {
-  var btnClaim = el('tab-btn-claim'), btnTrack = el('tab-btn-track');
-  var contClaim = el('tab-claim'), contTrack = el('tab-track');
-  if(!btnClaim || !btnTrack) return;
+  var tabs = ['claim','track','tax'];
+  var btns = { claim:el('tab-btn-claim'), track:el('tab-btn-track'), tax:el('tab-btn-tax') };
+  var conts = { claim:el('tab-claim'), track:el('tab-track'), tax:el('tab-tax') };
+  if(!btns.claim || !btns.track) return;
 
   var activeCls = ['bg-blue-600','text-white','shadow'];
   var inactiveCls = ['text-slate-400','hover:text-white'];
 
-  if(tab === 'track'){
-    contClaim.classList.add('hidden');
-    contTrack.classList.remove('hidden');
-    activeCls.forEach(function(c){ btnTrack.classList.add(c); btnClaim.classList.remove(c); });
-    inactiveCls.forEach(function(c){ btnClaim.classList.add(c); btnTrack.classList.remove(c); });
-  } else {
-    contClaim.classList.remove('hidden');
-    contTrack.classList.add('hidden');
-    activeCls.forEach(function(c){ btnClaim.classList.add(c); btnTrack.classList.remove(c); });
-    inactiveCls.forEach(function(c){ btnTrack.classList.add(c); btnClaim.classList.remove(c); });
-  }
-  // update URL parameter (โดยไม่ reload)
+  tabs.forEach(function(t){
+    if(!btns[t] || !conts[t]) return;
+    if(t === tab){
+      conts[t].classList.remove('hidden');
+      activeCls.forEach(function(c){ btns[t].classList.add(c); });
+      inactiveCls.forEach(function(c){ btns[t].classList.remove(c); });
+    } else {
+      conts[t].classList.add('hidden');
+      activeCls.forEach(function(c){ btns[t].classList.remove(c); });
+      inactiveCls.forEach(function(c){ btns[t].classList.add(c); });
+    }
+  });
+
+  // update URL
   if(updateUrl !== false){
     try {
       var url = new URL(window.location.href);
-      url.searchParams.set('page', tab);
+      // map tab name → URL param
+      var urlParam = tab === 'claim' ? 'customer' : tab;
+      url.searchParams.set('page', urlParam);
       history.replaceState(null, '', url.toString());
     } catch(e){}
   }
@@ -1771,6 +1911,142 @@ function trackClear(){
   if(inp) inp.value = '';
 }
 
+// ── Phone keypad (สำหรับฟอร์มใบกำกับภาษี) ──
+function taxPhoneKey(d){
+  var inp = el('tf-phone');
+  if(!inp) return;
+  if(inp.value.length < 10) inp.value = inp.value + d;
+}
+function taxPhoneBackspace(){
+  var inp = el('tf-phone');
+  if(inp) inp.value = inp.value.slice(0, -1);
+}
+function taxPhoneClear(){
+  var inp = el('tf-phone');
+  if(inp) inp.value = '';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ── TAX INVOICE (Public) ──
+// ═══════════════════════════════════════════════════════════════════
+var TAXPAYER_TYPE = null;  // 'individual' | 'corporate'
+
+function selectTaxpayerType(type){
+  TAXPAYER_TYPE = type;
+  var btnI = el('tp-individual'), btnC = el('tp-corporate');
+  var fieldsI = el('tf-individual-fields'), fieldsC = el('tf-corporate-fields');
+  var lookupBtn = el('tf-lookup-btn');
+
+  var activeCls = ['bg-blue-600','text-white','border-blue-500'];
+  var inactiveCls = ['bg-slate-800','border-slate-600'];
+
+  if(type === 'individual'){
+    activeCls.forEach(function(c){ btnI.classList.add(c); btnC.classList.remove(c); });
+    inactiveCls.forEach(function(c){ btnC.classList.add(c); btnI.classList.remove(c); });
+    fieldsI.classList.remove('hidden');
+    fieldsC.classList.add('hidden');
+    lookupBtn.classList.add('hidden');  // บุคคลธรรมดาไม่ต้อง lookup
+  } else {
+    activeCls.forEach(function(c){ btnC.classList.add(c); btnI.classList.remove(c); });
+    inactiveCls.forEach(function(c){ btnI.classList.add(c); btnC.classList.remove(c); });
+    fieldsC.classList.remove('hidden');
+    fieldsI.classList.add('hidden');
+    lookupBtn.classList.remove('hidden');  // นิติบุคคลแสดงปุ่มดึงข้อมูล
+  }
+}
+
+function lookupCompanyInfo(){
+  var taxId = v('tf-taxid');
+  if(taxId.length !== 13){
+    toast('❌ เลขผู้เสียภาษีต้องเป็น 13 หลัก');
+    return;
+  }
+  el('tf-lookup-btn').disabled = true;
+  el('tf-lookup-btn').textContent = 'กำลังดึง...';
+  gRun('lookupCompany',{taxId:taxId}).then(function(r){
+    el('tf-lookup-btn').disabled = false;
+    el('tf-lookup-btn').innerHTML = '🔎 ดึงข้อมูล';
+    if(!r || !r.success){
+      toast('ℹ️ '+(r&&r.message||'ไม่สามารถดึงข้อมูลได้ กรุณากรอกเอง'));
+      return;
+    }
+    // ถ้ามีข้อมูลก็กรอกให้
+    if(r.companyName) el('tf-company').value = r.companyName;
+    if(r.address) el('tf-address').value = r.address;
+    if(r.zipCode) el('tf-zip').value = r.zipCode;
+    toast('✅ ดึงข้อมูลสำเร็จ');
+  });
+}
+
+function submitTaxInvoice(){
+  if(!TAXPAYER_TYPE){ showTaxErr('กรุณาเลือกประเภทผู้เสียภาษี'); return; }
+  var taxId = v('tf-taxid');
+  if(taxId.length !== 13){ showTaxErr('เลขผู้เสียภาษีต้องเป็น 13 หลัก'); return; }
+  var order = v('tf-order');
+  if(!order){ showTaxErr('กรุณากรอกเลขคำสั่งซื้อ'); return; }
+
+  var name = '', company = '';
+  if(TAXPAYER_TYPE === 'individual'){
+    name = v('tf-name');
+    if(!name){ showTaxErr('กรุณากรอกชื่อ-นามสกุล'); return; }
+  } else {
+    company = v('tf-company');
+    if(!company){ showTaxErr('กรุณากรอกชื่อบริษัท/ห้างหุ้นส่วน'); return; }
+  }
+  var address = v('tf-address');
+  if(!address){ showTaxErr('กรุณากรอกที่อยู่'); return; }
+  var zip = v('tf-zip');
+  if(zip.length !== 5){ showTaxErr('รหัสไปรษณีย์ต้องเป็น 5 หลัก'); return; }
+  var phone = v('tf-phone');
+  if(!/^0\d{9}$/.test(phone)){ showTaxErr('เบอร์มือถือต้องเป็น 10 หลัก ขึ้นต้นด้วย 0'); return; }
+  var email = v('tf-email');
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ showTaxErr('รูปแบบอีเมลไม่ถูกต้อง'); return; }
+
+  el('tax-err').classList.add('hidden');
+  el('tf-submit-btn').disabled = true;
+  el('tf-submit-btn').textContent = 'กำลังส่ง...';
+
+  gRun('submitTaxInvoice',{
+    taxpayerType: TAXPAYER_TYPE,
+    orderNumber: order,
+    taxId: taxId,
+    customerName: name,
+    companyName: company,
+    address: address,
+    zipCode: zip,
+    phone: phone,
+    email: email
+  }).then(function(r){
+    el('tf-submit-btn').disabled = false;
+    el('tf-submit-btn').textContent = 'ส่งคำขอใบกำกับภาษี';
+    if(!r || !r.success){ showTaxErr(r && r.message || 'เกิดข้อผิดพลาด'); return; }
+    el('tax-form-card').classList.add('hidden');
+    el('tax-success').classList.remove('hidden');
+    el('tax-success-code').textContent = r.invoiceCode;
+    window.scrollTo({top:0, behavior:'smooth'});
+  }).catch(function(e){
+    el('tf-submit-btn').disabled = false;
+    el('tf-submit-btn').textContent = 'ส่งคำขอใบกำกับภาษี';
+    showTaxErr('❌ '+(e.message||e));
+  });
+}
+
+function showTaxErr(msg){
+  var e = el('tax-err');
+  e.textContent = msg;
+  e.classList.remove('hidden');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function goToTrackAfterTax(){
+  var phone = v('tf-phone');
+  switchTab('track');
+  if(phone && el('tr-phone')){
+    el('tr-phone').value = phone;
+    trackSearch();
+  }
+}
+
 function loadCarriersIntoSelect(selectId) {
   var sel = el(selectId);
   if(!sel) return;
@@ -1995,85 +2271,121 @@ function trackSearch(){
   }
   el('tr-err').classList.add('hidden');
   el('tr-results').innerHTML = '<div class="text-center text-slate-400 text-sm py-8">กำลังค้นหา...</div>';
-  gRun('getClaimsByPhone',{phone:phone}).then(function(r){
-    if(!r || !r.success){
-      el('tr-results').innerHTML = '<div class="text-center text-red-400 text-sm py-8">'+(r&&r.message||'ผิดพลาด')+'</div>';
+  Promise.all([
+    gRun('getClaimsByPhone',{phone:phone}),
+    gRun('getTaxInvoicesByPhone',{phone:phone})
+  ]).then(function(arr){
+    var claimsRes = arr[0] || {};
+    var taxRes = arr[1] || {};
+    var claims = (claimsRes.success && claimsRes.claims) ? claimsRes.claims : [];
+    var invoices = (taxRes.success && taxRes.invoices) ? taxRes.invoices : [];
+    if(!claims.length && !invoices.length){
+      el('tr-results').innerHTML = '<div class="text-center text-slate-400 text-sm py-8">ไม่พบรายการของเบอร์นี้</div>';
       return;
     }
-    if(!r.claims.length){
-      el('tr-results').innerHTML = '<div class="text-center text-slate-400 text-sm py-8">ไม่พบรายการเคลมของเบอร์นี้</div>';
-      return;
-    }
-    renderTrackResults(r.claims, phone);
+    renderTrackResults(claims, invoices, phone);
   }).catch(function(e){
     el('tr-results').innerHTML = '<div class="text-center text-red-400 text-sm py-8">❌ '+(e.message||e)+'</div>';
   });
 }
 
-function renderTrackResults(claims, phone){
+function renderTrackResults(claims, invoices, phone){
   var h = '';
-  claims.forEach(function(c){
-    var statusColor = getStatusColor(c.status);
-    h += '<div class="grad-card rounded-2xl p-5">';
-    h += '<div class="flex items-start justify-between gap-2 mb-3">';
-    h += '<div><div class="font-mono text-xs text-slate-500">'+c.claimCode+'</div>';
-    h += '<div class="font-semibold">'+escapeHtml(c.productName)+'</div>';
-    h += '<div class="text-xs text-slate-400 mt-1">ออเดอร์: '+escapeHtml(c.orderNumber)+'</div></div>';
-    h += '<span class="px-2.5 py-1 rounded-full text-xs font-semibold '+statusColor+'">'+escapeHtml(c.status)+'</span>';
-    h += '</div>';
 
-    // Timeline สั้น ๆ
-    h += '<div class="text-xs text-slate-500 mb-3">แจ้งเมื่อ '+c.createdDate+' · อัปเดต '+c.updatedDate+'</div>';
+  // ── Claims ──
+  if(claims.length){
+    h += '<div class="text-sm font-semibold text-slate-300 mb-2">🛠️ รายการเคลม ('+claims.length+')</div>';
+    claims.forEach(function(c){
+      h += renderClaimCard(c, phone);
+    });
+  }
 
-    // ถ้ามี diagnosis
-    if(c.diagnosis){
-      h += '<div class="bg-slate-800/50 rounded-xl p-3 mb-3">';
-      h += '<div class="text-xs text-slate-400 uppercase mb-1">ผลการตรวจจากช่าง</div>';
-      h += '<div class="text-sm">'+escapeHtml(c.diagnosis)+'</div>';
-      if(c.repairCost > 0){
-        h += '<div class="text-sm mt-2 text-orange-400">ค่าซ่อม: '+c.repairCost.toLocaleString()+' บาท</div>';
-      }
-      h += '</div>';
-    }
+  // ── Tax invoices ──
+  if(invoices.length){
+    h += '<div class="text-sm font-semibold text-slate-300 mt-6 mb-2">📄 ใบกำกับภาษี ('+invoices.length+')</div>';
+    invoices.forEach(function(t){
+      h += renderTaxCard(t);
+    });
+  }
 
-    // ถ้าต้องยืนยัน
-    if(c.status === 'มีค่าซ่อม รอลูกค้ายืนยัน' && !c.customerDecision){
-      h += '<div class="bg-orange-950/40 border border-orange-700/50 rounded-xl p-3 mb-3">';
-      h += '<div class="text-sm text-orange-300 mb-2">กรุณายืนยันการซ่อม</div>';
-      h += '<div class="grid grid-cols-2 gap-2">';
-      h += '<button onclick="doCustomerConfirm(\''+c.claimCode+'\',\''+phone+'\',\'repair\')" class="bg-emerald-600 hover:bg-emerald-500 py-2 rounded-lg text-sm font-semibold">✓ ยืนยันซ่อม</button>';
-      h += '<button onclick="doCustomerConfirm(\''+c.claimCode+'\',\''+phone+'\',\'reject\')" class="bg-red-600 hover:bg-red-500 py-2 rounded-lg text-sm font-semibold">✗ ไม่ซ่อม ส่งกลับ</button>';
-      h += '</div></div>';
-    }
-
-    if(c.customerDecision){
-      h += '<div class="text-xs text-emerald-400 mb-2">✓ การตัดสินใจของคุณ: '+escapeHtml(c.customerDecision)+'</div>';
-    }
-
-    // เลขพัสดุส่งกลับ
-    if(c.returnTrackingNo){
-      h += '<div class="bg-emerald-950/40 border border-emerald-700/50 rounded-xl p-3 mb-3">';
-      h += '<div class="text-xs text-emerald-300 uppercase mb-1">✓ ส่งกลับแล้ว</div>';
-      if(c.returnCarrier){
-        h += '<div class="text-sm mb-1">ขนส่ง: '+escapeHtml(c.returnCarrier)+'</div>';
-      }
-      h += '<div class="text-sm font-mono">เลขพัสดุ: '+escapeHtml(c.returnTrackingNo)+'</div>';
-      h += '</div>';
-    }
-
-    // รายละเอียด (collapse)
-    h += '<details class="text-xs text-slate-400"><summary class="cursor-pointer hover:text-white">ดูรายละเอียด</summary>';
-    h += '<div class="mt-2 space-y-1 pl-2">';
-    h += '<div>อาการ: '+escapeHtml(c.symptoms)+'</div>';
-    if(c.productCode) h += '<div>รหัสสินค้า: '+escapeHtml(c.productCode)+'</div>';
-    if(c.purchaseDate) h += '<div>ซื้อเมื่อ: '+escapeHtml(c.purchaseDate)+'</div>';
-    if(c.shippingCarrier) h += '<div>ส่งมาด้วย: '+escapeHtml(c.shippingCarrier)+'</div>';
-    if(c.incomingTrackingNo) h += '<div>เลขพัสดุส่งมา: '+escapeHtml(c.incomingTrackingNo)+'</div>';
-    h += '</div></details>';
-
-    h += '</div>';
-  });
   el('tr-results').innerHTML = h;
+}
+
+function renderClaimCard(c, phone){
+  var h = '';
+  var statusColor = getStatusColor(c.status);
+  h += '<div class="grad-card rounded-2xl p-5 mb-3">';
+  h += '<div class="flex items-start justify-between gap-2 mb-3">';
+  h += '<div><div class="font-mono text-xs text-slate-500">'+c.claimCode+'</div>';
+  h += '<div class="font-semibold">'+escapeHtml(c.productName)+'</div>';
+  h += '<div class="text-xs text-slate-400 mt-1">ออเดอร์: '+escapeHtml(c.orderNumber)+'</div></div>';
+  h += '<span class="px-2.5 py-1 rounded-full text-xs font-semibold '+statusColor+'">'+escapeHtml(c.status)+'</span>';
+  h += '</div>';
+  h += '<div class="text-xs text-slate-500 mb-3">แจ้งเมื่อ '+c.createdDate+' · อัปเดต '+c.updatedDate+'</div>';
+  if(c.diagnosis){
+    h += '<div class="bg-slate-800/50 rounded-xl p-3 mb-3">';
+    h += '<div class="text-xs text-slate-400 uppercase mb-1">ผลการตรวจจากช่าง</div>';
+    h += '<div class="text-sm">'+escapeHtml(c.diagnosis)+'</div>';
+    if(c.repairCost > 0){
+      h += '<div class="text-sm mt-2 text-orange-400">ค่าซ่อม: '+c.repairCost.toLocaleString()+' บาท</div>';
+    }
+    h += '</div>';
+  }
+  if(c.status === 'มีค่าซ่อม รอลูกค้ายืนยัน' && !c.customerDecision){
+    h += '<div class="bg-orange-950/40 border border-orange-700/50 rounded-xl p-3 mb-3">';
+    h += '<div class="text-sm text-orange-300 mb-2">กรุณายืนยันการซ่อม</div>';
+    h += '<div class="grid grid-cols-2 gap-2">';
+    h += '<button onclick="doCustomerConfirm(\''+c.claimCode+'\',\''+phone+'\',\'repair\')" class="bg-emerald-600 hover:bg-emerald-500 py-2 rounded-lg text-sm font-semibold">✓ ยืนยันซ่อม</button>';
+    h += '<button onclick="doCustomerConfirm(\''+c.claimCode+'\',\''+phone+'\',\'reject\')" class="bg-red-600 hover:bg-red-500 py-2 rounded-lg text-sm font-semibold">✗ ไม่ซ่อม ส่งกลับ</button>';
+    h += '</div></div>';
+  }
+  if(c.customerDecision){
+    h += '<div class="text-xs text-emerald-400 mb-2">✓ การตัดสินใจของคุณ: '+escapeHtml(c.customerDecision)+'</div>';
+  }
+  if(c.returnTrackingNo){
+    h += '<div class="bg-emerald-950/40 border border-emerald-700/50 rounded-xl p-3 mb-3">';
+    h += '<div class="text-xs text-emerald-300 uppercase mb-1">✓ ส่งกลับแล้ว</div>';
+    if(c.returnCarrier){
+      h += '<div class="text-sm mb-1">ขนส่ง: '+escapeHtml(c.returnCarrier)+'</div>';
+    }
+    h += '<div class="text-sm font-mono">เลขพัสดุ: '+escapeHtml(c.returnTrackingNo)+'</div>';
+    h += '</div>';
+  }
+  h += '<details class="text-xs text-slate-400"><summary class="cursor-pointer hover:text-white">ดูรายละเอียด</summary>';
+  h += '<div class="mt-2 space-y-1 pl-2">';
+  h += '<div>อาการ: '+escapeHtml(c.symptoms)+'</div>';
+  if(c.productCode) h += '<div>รหัสสินค้า: '+escapeHtml(c.productCode)+'</div>';
+  if(c.purchaseDate) h += '<div>ซื้อเมื่อ: '+escapeHtml(c.purchaseDate)+'</div>';
+  if(c.shippingCarrier) h += '<div>ส่งมาด้วย: '+escapeHtml(c.shippingCarrier)+'</div>';
+  if(c.incomingTrackingNo) h += '<div>เลขพัสดุส่งมา: '+escapeHtml(c.incomingTrackingNo)+'</div>';
+  h += '</div></details>';
+  h += '</div>';
+  return h;
+}
+
+function renderTaxCard(t){
+  var h = '';
+  var isIssued = t.status === 'ออกให้แล้ว';
+  var color = isIssued ? 'bg-emerald-900/60 text-emerald-300' : 'bg-slate-700 text-slate-300';
+  var who = t.taxpayerType === 'individual' ? t.customerName : t.companyName;
+  var typeLabel = t.taxpayerType === 'individual' ? '👤 บุคคลธรรมดา' : '🏢 นิติบุคคล';
+
+  h += '<div class="grad-card rounded-2xl p-5 mb-3">';
+  h += '<div class="flex items-start justify-between gap-2 mb-2">';
+  h += '<div><div class="font-mono text-xs text-slate-500">'+t.invoiceCode+'</div>';
+  h += '<div class="font-semibold text-sm">'+escapeHtml(who)+'</div>';
+  h += '<div class="text-xs text-slate-400 mt-1">'+typeLabel+' · ออเดอร์ '+escapeHtml(t.orderNumber)+'</div></div>';
+  h += '<span class="px-2.5 py-1 rounded-full text-xs font-semibold '+color+'">'+escapeHtml(t.status)+'</span>';
+  h += '</div>';
+  if(isIssued && t.issuedInvoiceNumber){
+    h += '<div class="bg-emerald-950/40 border border-emerald-700/50 rounded-xl p-3 mb-2">';
+    h += '<div class="text-xs text-emerald-300 uppercase mb-1">✓ ออกใบกำกับภาษีแล้ว</div>';
+    h += '<div class="text-sm">เลขที่: <span class="font-mono">'+escapeHtml(t.issuedInvoiceNumber)+'</span></div>';
+    h += '</div>';
+  }
+  h += '<div class="text-xs text-slate-500">ส่งคำขอเมื่อ '+t.createdDate+'</div>';
+  h += '</div>';
+  return h;
 }
 
 function doCustomerConfirm(claimCode, phone, decision){
@@ -2367,7 +2679,7 @@ function renderNotifs(list){
 
 function updateNotifBadge(list){
   var unread = list.filter(function(n){ return !n.read; }).length;
-  ['notif-badge','notif-badge-r','notif-badge-c'].forEach(function(id){
+  ['notif-badge','notif-badge-r','notif-badge-c','notif-badge-t'].forEach(function(id){
     var b = el(id);
     if(!b) return;
     if(unread > 0){
@@ -2423,14 +2735,129 @@ doLogout = function(){
   _origDoLogout();
 };
 
-// Hook: showScreen → โหลดข้อมูลเมื่อเข้า claims
+// Hook: showScreen → โหลดข้อมูลเมื่อเข้า claims/tax
 var _origShowScreen = showScreen;
 showScreen = function(name, fadeMsg){
   _origShowScreen(name, fadeMsg);
   setTimeout(function(){
     if(name === 'claims') loadClaims();
+    if(name === 'tax') loadTaxInvoices();
   }, 400);
 };
+
+// ═══════════════════════════════════════════════════════════════════
+// ── ADMIN TAX INVOICES ──
+// ═══════════════════════════════════════════════════════════════════
+var TAX_CACHE = [];
+
+function loadTaxInvoices(){
+  el('tx-results').innerHTML = '<div class="text-center text-slate-400 py-8 text-sm">กำลังโหลด...</div>';
+  gRun('getAllTaxInvoices',{}).then(function(r){
+    if(!r || !r.success){
+      el('tx-results').innerHTML = '<div class="text-center text-red-400 py-8 text-sm">❌ '+(r&&r.message||'ผิดพลาด')+'</div>';
+      return;
+    }
+    TAX_CACHE = r.invoices || [];
+    renderTaxList();
+  });
+}
+
+function renderTaxList(){
+  var q = (el('tx-search').value || '').toLowerCase().trim();
+  var f = el('tx-filter-status').value || '';
+  var list = TAX_CACHE.filter(function(t){
+    if(f && t.status !== f) return false;
+    if(!q) return true;
+    var who = t.taxpayerType==='individual' ? t.customerName : t.companyName;
+    return [who, t.phone, t.orderNumber, t.invoiceCode, t.taxId, t.email]
+      .some(function(x){ return String(x||'').toLowerCase().indexOf(q) !== -1; });
+  });
+  if(!list.length){
+    el('tx-results').innerHTML = '<div class="text-center text-slate-400 py-8 text-sm">ไม่พบรายการ</div>';
+    return;
+  }
+  var h = '';
+  list.forEach(function(t){
+    var color = t.status === 'ออกให้แล้ว' ? 'bg-emerald-900/60 text-emerald-300' : 'bg-slate-700 text-slate-300';
+    var who = t.taxpayerType === 'individual' ? t.customerName : t.companyName;
+    var type = t.taxpayerType === 'individual' ? '👤' : '🏢';
+    h += '<div class="grad-card rounded-xl p-4 hover:border-slate-600 cursor-pointer" onclick="openTaxModal(\''+t.invoiceCode+'\')">';
+    h += '<div class="flex items-start gap-3 flex-wrap">';
+    h += '<div class="flex-1 min-w-0">';
+    h += '<div class="flex items-center gap-2 mb-1 flex-wrap">';
+    h += '<span class="font-mono text-xs text-slate-500">'+t.invoiceCode+'</span>';
+    h += '<span class="px-2 py-0.5 rounded-full text-xs font-semibold '+color+'">'+escapeHtml(t.status)+'</span>';
+    h += '</div>';
+    h += '<div class="font-semibold text-sm truncate">'+type+' '+escapeHtml(who)+'</div>';
+    h += '<div class="text-xs text-slate-400 mt-1">Tax ID: '+escapeHtml(t.taxId)+' · ออเดอร์ '+escapeHtml(t.orderNumber)+'</div>';
+    h += '<div class="text-xs text-slate-500 mt-0.5">'+escapeHtml(t.phone)+' · '+escapeHtml(t.email)+' · แจ้งเมื่อ '+t.createdDate+'</div>';
+    h += '</div>';
+    h += '<button class="text-xs text-blue-400 hover:underline">แก้ไข →</button>';
+    h += '</div></div>';
+  });
+  el('tx-results').innerHTML = h;
+}
+
+function openTaxModal(invoiceCode){
+  var t = TAX_CACHE.find(function(x){ return x.invoiceCode === invoiceCode; });
+  if(!t) return;
+  var who = t.taxpayerType === 'individual' ? t.customerName : t.companyName;
+  var typeLabel = t.taxpayerType === 'individual' ? '👤 บุคคลธรรมดา' : '🏢 นิติบุคคล';
+
+  var h = '<div class="space-y-4">';
+
+  h += '<div class="bg-slate-800/50 rounded-xl p-4 space-y-1 text-sm">';
+  h += '<div class="flex justify-between"><span class="text-slate-400">รหัส:</span><span class="font-mono">'+t.invoiceCode+'</span></div>';
+  h += '<div class="flex justify-between"><span class="text-slate-400">ประเภท:</span><span>'+typeLabel+'</span></div>';
+  h += '<div class="flex justify-between"><span class="text-slate-400">เลขคำสั่งซื้อ:</span><span>'+escapeHtml(t.orderNumber)+'</span></div>';
+  h += '<div class="flex justify-between"><span class="text-slate-400">เลขผู้เสียภาษี:</span><span class="font-mono">'+escapeHtml(t.taxId)+'</span></div>';
+  h += '<div class="flex justify-between"><span class="text-slate-400">'+(t.taxpayerType==='individual'?'ชื่อ-นามสกุล':'บริษัท/ห้าง')+':</span><span>'+escapeHtml(who)+'</span></div>';
+  h += '<div><span class="text-slate-400">ที่อยู่:</span><div class="text-xs mt-1">'+escapeHtml(t.address)+' '+escapeHtml(t.zipCode)+'</div></div>';
+  h += '<div class="flex justify-between items-center pt-1"><span class="text-slate-400">เบอร์:</span>';
+  h += '<div class="flex items-center gap-2"><span class="font-mono">'+escapeHtml(t.phone)+'</span>';
+  h += '<button onclick="copyPhone(\''+t.phone+'\')" class="text-slate-400 hover:text-white text-xs">📋</button></div></div>';
+  h += '<div class="flex justify-between"><span class="text-slate-400">อีเมล:</span><a href="mailto:'+encodeURIComponent(t.email)+'" class="text-blue-400 hover:underline">'+escapeHtml(t.email)+'</a></div>';
+  h += '</div>';
+
+  var statusOpts =
+    '<option value="รอออกใบกำกับ" '+(t.status==='รอออกใบกำกับ'?'selected':'')+'>รอออกใบกำกับ</option>'+
+    '<option value="ออกให้แล้ว" '+(t.status==='ออกให้แล้ว'?'selected':'')+'>ออกให้แล้ว</option>';
+
+  h += '<div class="bg-blue-950/30 border border-blue-800/40 rounded-xl p-4 space-y-3">';
+  h += '<div class="font-semibold text-sm">จัดการสถานะ</div>';
+  h += '<div><label class="text-xs text-slate-400 uppercase">สถานะ</label>';
+  h += '<select id="tm-status" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm">'+statusOpts+'</select></div>';
+  h += '<div><label class="text-xs text-slate-400 uppercase">เลขใบกำกับภาษีที่ออกให้ (ลูกค้าเห็น)</label>';
+  h += '<input id="tm-invoice-no" type="text" value="'+escapeHtml(t.issuedInvoiceNumber||'')+'" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm font-mono"></div>';
+  h += '<div><label class="text-xs text-slate-400 uppercase">หมายเหตุ (ภายใน)</label>';
+  h += '<textarea id="tm-note" rows="2" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm">'+escapeHtml(t.adminNote||'')+'</textarea></div>';
+  h += '<button onclick="saveTaxUpdate(\''+t.invoiceCode+'\')" class="w-full bg-blue-600 hover:bg-blue-500 py-2.5 rounded-xl font-semibold text-sm">💾 บันทึก</button>';
+  h += '</div>';
+
+  h += '<div class="text-xs text-slate-500 text-center">อัปเดตล่าสุด: '+t.updatedDate+'</div>';
+  h += '</div>';
+
+  el('tax-modal-body').innerHTML = h;
+  el('tax-modal').classList.remove('hidden');
+}
+
+function closeTaxModal(){
+  el('tax-modal').classList.add('hidden');
+}
+
+function saveTaxUpdate(invoiceCode){
+  gRun('updateTaxInvoice',{
+    invoiceCode: invoiceCode,
+    status: v('tm-status'),
+    issuedInvoiceNumber: v('tm-invoice-no'),
+    adminNote: v('tm-note')
+  }).then(function(r){
+    if(!r || !r.success){ toast('❌ '+(r&&r.message||'ผิดพลาด')); return; }
+    toast('✅ บันทึกแล้ว');
+    closeTaxModal();
+    loadTaxInvoices();
+  });
+}
 
 Chart.defaults.color='#64748b';Chart.defaults.borderColor='#1e293b';
 </script>
