@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DoByTop</title>
+<title>PackingApp</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
@@ -33,7 +33,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="grad-card rounded-3xl p-8 shadow-2xl">
 <div class="text-center mb-8">
 <div class="text-7xl mb-3">📦</div>
-<h1 class="text-xl font-bold">DoByTop</h1>
+<h1 class="text-xl font-bold">PackingApp</h1>
 <p class="text-slate-400 text-sm mt-1">กรุณาเข้าสู่ระบบ</p>
 </div>
 <div id="login-err" class="hidden mb-4 bg-red-950/60 border border-red-700/50 text-red-300 px-4 py-3 rounded-xl text-sm"></div>
@@ -53,10 +53,14 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <!-- RECORD -->
 <div id="screen-record" class="screen min-h-screen flex flex-col">
 <nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center justify-between">
-<div class="flex items-center gap-3"><span class="text-2xl">📦</span><div><div class="font-bold text-sm">DoByTop</div><div id="nav-packer" class="text-slate-400 text-xs">-</div></div></div>
+<div class="flex items-center gap-3"><span class="text-2xl">📦</span><div><div class="font-bold text-sm">PackingApp</div><div id="nav-packer" class="text-slate-400 text-xs">-</div></div></div>
 <div class="flex items-center gap-1">
 <button onclick="showScreen('dashboard')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📊 รายงาน</button>
 <button onclick="showScreen('returns')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📋 ติดตามคืน</button>
+<button onclick="showScreen('claims')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🛠️ เคลม</button>
+<button onclick="toggleNotifPanel()" class="relative text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">
+🔔<span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">0</span>
+</button>
 <button id="admin-nav-btn" onclick="showScreen('admin')" class="hidden text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">⚙️ จัดการ</button>
 <button onclick="doLogout()" class="text-slate-400 hover:text-red-400 hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">ออก</button>
 </div></nav>
@@ -170,9 +174,18 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 
 <!-- RETURN TRACKING SCREEN -->
 <div id="screen-returns" class="screen min-h-screen flex flex-col">
-<nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center gap-4">
+<nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center justify-between gap-4">
+<div class="flex items-center gap-4">
 <button onclick="showScreen('record')" class="text-slate-400 hover:text-white text-sm">← กลับ</button>
-<span class="font-bold text-sm">🔄 ติดตามสินค้าคืน</span></nav>
+<span class="font-bold text-sm">🔄 ติดตามสินค้าคืน</span>
+</div>
+<div class="flex items-center gap-1">
+<button onclick="showScreen('claims')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🛠️ เคลม</button>
+<button onclick="toggleNotifPanel()" class="relative text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">
+🔔<span id="notif-badge-r" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">0</span>
+</button>
+</div>
+</nav>
 <div class="flex-1 overflow-y-auto p-4 max-w-5xl mx-auto w-full space-y-4">
 
 <!-- เพิ่มรายการคืน -->
@@ -465,11 +478,180 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="grad-card rounded-2xl p-8 text-center shadow-2xl min-w-48"><div class="text-4xl spin mb-3">⚙️</div><div id="overlay-text" class="text-slate-300 text-sm">กำลังโหลด...</div></div></div>
 <div id="toast-container" class="fixed bottom-6 left-1/2 -translate-x-1/2 flex flex-col gap-2 z-50 pointer-events-none"></div>
 
+<!-- ═══════════════════════════════════════ -->
+<!-- SCREEN: CLAIM FORM (PUBLIC — ไม่ต้อง login) -->
+<!-- ═══════════════════════════════════════ -->
+<div id="screen-claim" class="screen min-h-screen">
+<nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center justify-between">
+<div class="flex items-center gap-3"><span class="text-2xl">🛠️</span><div><div class="font-bold text-sm">แจ้งเคลม/ซ่อมสินค้า</div><div class="text-slate-400 text-xs">กรอกข้อมูลให้ครบถ้วน</div></div></div>
+<button onclick="goPage('track')" class="text-blue-400 hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📦 เช็คสถานะ</button>
+</nav>
+
+<div class="max-w-2xl mx-auto p-4 pb-20">
+<div id="claim-success" class="hidden grad-card rounded-2xl p-8 text-center mb-4">
+<div class="text-6xl mb-3">✅</div>
+<div class="text-xl font-bold mb-2">แจ้งเคลมสำเร็จ</div>
+<div class="text-slate-400 text-sm mb-4">บันทึกรหัสติดตามไว้สำหรับเช็คสถานะ</div>
+<div class="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-4">
+<div class="text-xs text-slate-400 mb-1">รหัสติดตาม</div>
+<div id="claim-success-code" class="text-2xl font-mono font-bold text-blue-400"></div>
+</div>
+<button onclick="copyClaimCode()" class="w-full bg-slate-700 hover:bg-slate-600 py-3 rounded-xl text-sm mb-2">📋 คัดลอกรหัส</button>
+<button onclick="goPage('track')" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl text-sm font-semibold">ไปเช็คสถานะ</button>
+</div>
+
+<div id="claim-form-card" class="grad-card rounded-2xl p-5 space-y-3">
+<div id="claim-err" class="hidden bg-red-950/60 border border-red-700/50 text-red-300 px-4 py-3 rounded-xl text-sm"></div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">ชื่อ-นามสกุล *</label>
+<input id="cf-name" type="text" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white">
+</div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">เบอร์มือถือ * (10 หลัก)</label>
+<input id="cf-phone" type="tel" inputmode="numeric" maxlength="10" placeholder="0812345678" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white" oninput="this.value=this.value.replace(/\D/g,'')">
+</div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">ที่อยู่จัดส่งกลับ *</label>
+<textarea id="cf-address" rows="2" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white" placeholder="บ้านเลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์"></textarea>
+</div>
+
+<div class="grid grid-cols-2 gap-3">
+<div>
+<label class="text-xs text-slate-400 uppercase">เลขคำสั่งซื้อ *</label>
+<input id="cf-order" type="text" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white">
+</div>
+<div>
+<label class="text-xs text-slate-400 uppercase">วันที่ซื้อ</label>
+<input id="cf-purchase-date" type="date" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white">
+</div>
+</div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">ชื่อสินค้าที่เสีย *</label>
+<input id="cf-product" type="text" placeholder="เช่น มิเตอร์มิตซูบิชิ 1P 15A" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white">
+</div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">รหัสสินค้า (ถ้ามี)</label>
+<input id="cf-product-code" type="text" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white">
+</div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">อาการที่เสีย *</label>
+<textarea id="cf-symptoms" rows="3" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white" placeholder="อธิบายอาการให้ละเอียด"></textarea>
+</div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">ขนส่งที่ใช้ส่งกลับมา</label>
+<select id="cf-carrier" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white" onchange="toggleOtherCarrier()">
+<option value="">-- เลือกขนส่ง --</option>
+</select>
+<input id="cf-carrier-other" type="text" placeholder="ระบุขนส่ง" class="hidden mt-2 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white">
+</div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">เลขพัสดุที่ส่งมาเคลม *</label>
+<input id="cf-tracking" type="text" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white">
+</div>
+
+<div>
+<label class="text-xs text-slate-400 uppercase">รูปสินค้าที่เสีย (1-5 รูป)</label>
+<input id="cf-photos" type="file" accept="image/*" multiple class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white text-sm">
+<div id="cf-photo-preview" class="mt-2 flex gap-2 flex-wrap"></div>
+</div>
+
+<button id="cf-submit-btn" onclick="submitClaim()" class="w-full bg-orange-600 hover:bg-orange-500 font-semibold py-3 rounded-xl mt-3">ส่งแจ้งเคลม</button>
+<div id="cf-upload-progress" class="hidden text-center text-xs text-slate-400 mt-2">กำลังอัปโหลดรูป...</div>
+</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SCREEN: TRACK STATUS (PUBLIC) -->
+<!-- ═══════════════════════════════════════ -->
+<div id="screen-track" class="screen min-h-screen">
+<nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center justify-between">
+<div class="flex items-center gap-3"><span class="text-2xl">📦</span><div><div class="font-bold text-sm">เช็คสถานะเคลม/ซ่อม</div></div></div>
+<button onclick="goPage('claim')" class="text-blue-400 hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🛠️ แจ้งเคลมใหม่</button>
+</nav>
+
+<div class="max-w-2xl mx-auto p-4 pb-20">
+<div class="grad-card rounded-2xl p-5 mb-4">
+<label class="text-xs text-slate-400 uppercase">กรอกเบอร์มือถือ 10 หลัก</label>
+<div class="flex gap-2 mt-2">
+<input id="tr-phone" type="tel" inputmode="numeric" maxlength="10" placeholder="0812345678" class="flex-1 bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-white" oninput="this.value=this.value.replace(/\D/g,'')" onkeydown="if(event.key==='Enter')trackSearch()">
+<button onclick="trackSearch()" class="bg-blue-600 hover:bg-blue-500 px-5 rounded-xl font-semibold text-sm">ค้นหา</button>
+</div>
+<div id="tr-err" class="hidden mt-2 text-sm text-red-400"></div>
+</div>
+
+<div id="tr-results" class="space-y-3"></div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SCREEN: CLAIMS (Admin/Staff) -->
+<!-- ═══════════════════════════════════════ -->
+<div id="screen-claims" class="screen min-h-screen">
+<nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center justify-between">
+<div class="flex items-center gap-3"><span class="text-2xl">🛠️</span><div><div class="font-bold text-sm">จัดการเคลม/ซ่อมสินค้า</div><div id="nav-packer-claims" class="text-slate-400 text-xs">-</div></div></div>
+<div class="flex items-center gap-1">
+<button onclick="showScreen('record')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📹 บันทึก</button>
+<button onclick="showScreen('dashboard')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📊 รายงาน</button>
+<button onclick="showScreen('returns')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📋 ติดตามคืน</button>
+<button onclick="doLogout()" class="text-slate-400 hover:text-red-400 hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">ออก</button>
+</div></nav>
+
+<div class="max-w-7xl mx-auto p-4">
+<div class="flex items-center gap-3 mb-4 flex-wrap">
+<input id="cl-search" type="text" placeholder="ค้นหา: ชื่อ/เบอร์/ออเดอร์/Claim Code" class="flex-1 min-w-48 bg-slate-800 border border-slate-600 rounded-xl px-4 py-2.5 text-white text-sm" oninput="renderClaims()">
+<select id="cl-filter-status" class="bg-slate-800 border border-slate-600 rounded-xl px-3 py-2.5 text-white text-sm" onchange="renderClaims()">
+<option value="">ทุกสถานะ</option>
+</select>
+<button onclick="loadClaims()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2.5 rounded-xl text-sm">🔄 รีเฟรช</button>
+</div>
+
+<div id="cl-results" class="space-y-2"></div>
+</div>
+</div>
+
+<!-- Claim Detail Modal (Admin) -->
+<div id="claim-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 overflow-y-auto p-4">
+<div class="max-w-3xl mx-auto my-8 bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden">
+<div class="flex items-center justify-between px-5 py-3 border-b border-slate-800">
+<div class="font-bold">รายละเอียดเคลม</div>
+<button onclick="closeClaimModal()" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+</div>
+<div id="claim-modal-body" class="p-5"></div>
+</div>
+</div>
+
+<!-- Notification Panel -->
+<div id="notif-panel" class="hidden fixed top-14 right-4 w-80 max-h-96 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-40 overflow-hidden flex flex-col">
+<div class="flex items-center justify-between px-4 py-2.5 border-b border-slate-800">
+<div class="text-sm font-bold">🔔 แจ้งเตือน</div>
+<button onclick="markAllRead()" class="text-xs text-blue-400 hover:underline">อ่านทั้งหมด</button>
+</div>
+<div id="notif-list" class="flex-1 overflow-y-auto"></div>
+</div>
+
+
 <script>
 // ═══════════════════════════════════════
 // CONFIG — ใส่ GAS Web App URL ตรงนี้
+// วิธีหา: Apps Script → Deploy → Manage deployments → คัดลอก "Web app URL"
 // ═══════════════════════════════════════
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbwnG9PU5h8_Z6tTkIBswdm10evy6i03mgCgZ9YVijrQ_U3_t1-FTwEOKCZKCFEk9gqZqg/exec';
+var GAS_URL = 'PASTE_YOUR_GAS_WEB_APP_URL_HERE';
+
+// เช็คว่าใส่ URL แล้วหรือยัง
+if (GAS_URL === 'PASTE_YOUR_GAS_WEB_APP_URL_HERE') {
+  document.addEventListener('DOMContentLoaded', function() {
+    document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#fff;font-family:sans-serif"><h1 style="color:#f87171">⚠ ยังไม่ได้ตั้งค่า</h1><p style="color:#94a3b8;margin-top:16px">กรุณาเปิด <b>Index.html</b> แล้วใส่ <b>GAS_URL</b> ที่บรรทัด ~472<br>(ดูวิธีใน README.md)</p></div>';
+  });
+}
 
 // ═══════════════════════════════════════
 // API — เรียก GAS ผ่าน fetch GET (ไม่มี CORS issue)
@@ -595,7 +777,32 @@ function autoRestore() {
     }
   } catch(e) {}
 }
-autoRestore();
+
+// ═══════════════════════════════════════
+// URL ROUTER — ?page=claim / ?page=track / (blank → login)
+// ═══════════════════════════════════════
+function getQueryParam(key) {
+  var m = window.location.search.match(new RegExp('[?&]'+key+'=([^&]*)'));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+function goPage(page) {
+  window.location.search = '?page=' + encodeURIComponent(page);
+}
+function initPage() {
+  var page = getQueryParam('page');
+  if (page === 'claim') {
+    showScreen('claim');
+    loadCarriersIntoSelect('cf-carrier');
+    return;
+  }
+  if (page === 'track') {
+    showScreen('track');
+    return;
+  }
+  // default → login (หรือ auto-restore)
+  autoRestore();
+}
+initPage();
 
 // ═══════════════════════════════════════
 // CAMERA — ทำงานโดยตรง (ไม่มี iframe!)
@@ -1453,6 +1660,573 @@ function v(id){var e=el(id);return e?e.value.trim():'';}
 function pad(n){return n<10?'0'+n:''+n;}
 function fmtTime(d){return d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});}
 function fmtDur(sec){if(!sec||isNaN(sec))return '-';var m=Math.floor(sec/60),s=sec%60;return m>0?m+':'+pad(s)+' น.':s+' วิ';}
+// ═══════════════════════════════════════════════════════════════════
+// ── CLAIM FORM (Public) ──
+// ═══════════════════════════════════════════════════════════════════
+var CLAIM_CARRIERS_CACHE = null;
+var CLAIM_PHOTOS_PENDING = [];   // File objects รอ upload
+
+function loadCarriersIntoSelect(selectId) {
+  var sel = el(selectId);
+  if(!sel) return;
+  // ใช้ cache ถ้ามี
+  if(CLAIM_CARRIERS_CACHE){
+    renderCarriers(sel, CLAIM_CARRIERS_CACHE);
+    return;
+  }
+  gRun('getCarriers',{}).then(function(r){
+    if(r && r.success && r.carriers){
+      CLAIM_CARRIERS_CACHE = r.carriers;
+      renderCarriers(sel, r.carriers);
+    }
+  });
+}
+function renderCarriers(sel, list){
+  var h = '<option value="">-- เลือกขนส่ง --</option>';
+  list.forEach(function(c){ h += '<option value="'+c+'">'+c+'</option>'; });
+  sel.innerHTML = h;
+}
+function toggleOtherCarrier(){
+  var sel = el('cf-carrier');
+  var other = el('cf-carrier-other');
+  if(sel.value === 'อื่นๆ'){
+    other.classList.remove('hidden');
+    other.focus();
+  } else {
+    other.classList.add('hidden');
+    other.value = '';
+  }
+}
+
+// Preview รูปก่อนอัปโหลด
+document.addEventListener('change', function(e){
+  if(e.target && e.target.id === 'cf-photos'){
+    var files = Array.from(e.target.files || []).slice(0, 5);
+    if(e.target.files.length > 5){
+      toast('⚠️ จำกัดสูงสุด 5 รูป — ใช้ 5 รูปแรก');
+    }
+    CLAIM_PHOTOS_PENDING = files;
+    var prev = el('cf-photo-preview');
+    prev.innerHTML = '';
+    files.forEach(function(f){
+      var url = URL.createObjectURL(f);
+      var img = document.createElement('img');
+      img.src = url;
+      img.className = 'w-16 h-16 object-cover rounded-lg border border-slate-700';
+      prev.appendChild(img);
+    });
+  }
+});
+
+function submitClaim(){
+  var name = v('cf-name');
+  var phone = v('cf-phone');
+  var address = v('cf-address');
+  var order = v('cf-order');
+  var product = v('cf-product');
+  var symptoms = v('cf-symptoms');
+  var tracking = v('cf-tracking');
+  var carrierSel = v('cf-carrier');
+  var carrierOther = v('cf-carrier-other');
+  var carrier = carrierSel === 'อื่นๆ' ? carrierOther : carrierSel;
+
+  // Validate
+  if(!name){ showClaimErr('กรุณากรอกชื่อ-นามสกุล'); return; }
+  if(!/^0\d{9}$/.test(phone)){ showClaimErr('เบอร์มือถือต้องเป็น 10 หลัก ขึ้นต้นด้วย 0'); return; }
+  if(!address){ showClaimErr('กรุณากรอกที่อยู่จัดส่งกลับ'); return; }
+  if(!order){ showClaimErr('กรุณากรอกเลขคำสั่งซื้อ'); return; }
+  if(!product){ showClaimErr('กรุณากรอกชื่อสินค้าที่เสีย'); return; }
+  if(!symptoms){ showClaimErr('กรุณากรอกอาการที่เสีย'); return; }
+  if(!tracking){ showClaimErr('กรุณากรอกเลขพัสดุที่ส่งมาเคลม'); return; }
+
+  el('claim-err').classList.add('hidden');
+  el('cf-submit-btn').disabled = true;
+  el('cf-submit-btn').textContent = 'กำลังส่ง...';
+
+  // อัปโหลดรูปก่อน (ถ้ามี) แล้วค่อยส่ง data
+  var doSubmit = function(photoIds){
+    var payload = {
+      customerName: name,
+      phone: phone,
+      address: address,
+      orderNumber: order,
+      productName: product,
+      productCode: v('cf-product-code'),
+      symptoms: symptoms,
+      purchaseDate: v('cf-purchase-date'),
+      shippingCarrier: carrier,
+      incomingTrackingNo: tracking,
+      photos: photoIds.join(',')
+    };
+    gRun('submitClaim', payload).then(function(r){
+      el('cf-submit-btn').disabled = false;
+      el('cf-submit-btn').textContent = 'ส่งแจ้งเคลม';
+      el('cf-upload-progress').classList.add('hidden');
+      if(!r || !r.success){ showClaimErr(r && r.message || 'เกิดข้อผิดพลาด'); return; }
+      // สำเร็จ
+      el('claim-form-card').classList.add('hidden');
+      el('claim-success').classList.remove('hidden');
+      el('claim-success-code').textContent = r.claimCode;
+      window.scrollTo({top:0, behavior:'smooth'});
+    }).catch(function(e){
+      el('cf-submit-btn').disabled = false;
+      el('cf-submit-btn').textContent = 'ส่งแจ้งเคลม';
+      el('cf-upload-progress').classList.add('hidden');
+      showClaimErr('❌ '+(e.message||e));
+    });
+  };
+
+  if(CLAIM_PHOTOS_PENDING.length === 0){
+    doSubmit([]);
+  } else {
+    el('cf-upload-progress').classList.remove('hidden');
+    uploadClaimPhotos(CLAIM_PHOTOS_PENDING).then(function(ids){
+      doSubmit(ids);
+    }).catch(function(e){
+      el('cf-submit-btn').disabled = false;
+      el('cf-submit-btn').textContent = 'ส่งแจ้งเคลม';
+      el('cf-upload-progress').classList.add('hidden');
+      showClaimErr('อัปโหลดรูปไม่สำเร็จ: '+(e.message||e));
+    });
+  }
+}
+
+function showClaimErr(msg){
+  var e = el('claim-err');
+  e.textContent = msg;
+  e.classList.remove('hidden');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// อัปโหลดรูปทีละไฟล์ → return array ของ fileId
+function uploadClaimPhotos(files){
+  return gRun('getClaimUploadInfo',{}).then(function(info){
+    if(!info || !info.success) throw new Error(info && info.message || 'ขอ token ไม่ได้');
+    var ids = [];
+    var seq = Promise.resolve();
+    files.forEach(function(f, idx){
+      seq = seq.then(function(){
+        el('cf-upload-progress').textContent = 'กำลังอัปโหลดรูป '+(idx+1)+'/'+files.length+'...';
+        var metadata = {name: 'claim_'+Date.now()+'_'+idx+'_'+f.name, parents:[info.folderId]};
+        var form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], {type:'application/json'}));
+        form.append('file', f);
+        return fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{
+          method:'POST',
+          headers:{'Authorization':'Bearer '+info.token},
+          body: form
+        }).then(function(r){ return r.json(); })
+        .then(function(d){
+          if(!d.id) throw new Error('upload failed');
+          ids.push(d.id);
+        });
+      });
+    });
+    return seq.then(function(){ return ids; });
+  });
+}
+
+function copyClaimCode(){
+  var code = el('claim-success-code').textContent;
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(code).then(function(){ toast('✅ คัดลอกแล้ว: '+code); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = code; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); toast('✅ คัดลอกแล้ว'); } catch(e){}
+    document.body.removeChild(ta);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ── TRACK STATUS (Public) ──
+// ═══════════════════════════════════════════════════════════════════
+function trackSearch(){
+  var phone = v('tr-phone');
+  if(!/^0\d{9}$/.test(phone)){
+    el('tr-err').textContent = 'เบอร์มือถือต้องเป็น 10 หลัก ขึ้นต้นด้วย 0';
+    el('tr-err').classList.remove('hidden');
+    return;
+  }
+  el('tr-err').classList.add('hidden');
+  el('tr-results').innerHTML = '<div class="text-center text-slate-400 text-sm py-8">กำลังค้นหา...</div>';
+  gRun('getClaimsByPhone',{phone:phone}).then(function(r){
+    if(!r || !r.success){
+      el('tr-results').innerHTML = '<div class="text-center text-red-400 text-sm py-8">'+(r&&r.message||'ผิดพลาด')+'</div>';
+      return;
+    }
+    if(!r.claims.length){
+      el('tr-results').innerHTML = '<div class="text-center text-slate-400 text-sm py-8">ไม่พบรายการเคลมของเบอร์นี้</div>';
+      return;
+    }
+    renderTrackResults(r.claims, phone);
+  }).catch(function(e){
+    el('tr-results').innerHTML = '<div class="text-center text-red-400 text-sm py-8">❌ '+(e.message||e)+'</div>';
+  });
+}
+
+function renderTrackResults(claims, phone){
+  var h = '';
+  claims.forEach(function(c){
+    var statusColor = getStatusColor(c.status);
+    h += '<div class="grad-card rounded-2xl p-5">';
+    h += '<div class="flex items-start justify-between gap-2 mb-3">';
+    h += '<div><div class="font-mono text-xs text-slate-500">'+c.claimCode+'</div>';
+    h += '<div class="font-semibold">'+escapeHtml(c.productName)+'</div>';
+    h += '<div class="text-xs text-slate-400 mt-1">ออเดอร์: '+escapeHtml(c.orderNumber)+'</div></div>';
+    h += '<span class="px-2.5 py-1 rounded-full text-xs font-semibold '+statusColor+'">'+escapeHtml(c.status)+'</span>';
+    h += '</div>';
+
+    // Timeline สั้น ๆ
+    h += '<div class="text-xs text-slate-500 mb-3">แจ้งเมื่อ '+c.createdDate+' · อัปเดต '+c.updatedDate+'</div>';
+
+    // ถ้ามี diagnosis
+    if(c.diagnosis){
+      h += '<div class="bg-slate-800/50 rounded-xl p-3 mb-3">';
+      h += '<div class="text-xs text-slate-400 uppercase mb-1">ผลการตรวจจากช่าง</div>';
+      h += '<div class="text-sm">'+escapeHtml(c.diagnosis)+'</div>';
+      if(c.repairCost > 0){
+        h += '<div class="text-sm mt-2 text-orange-400">ค่าซ่อม: '+c.repairCost.toLocaleString()+' บาท</div>';
+      }
+      h += '</div>';
+    }
+
+    // ถ้าต้องยืนยัน
+    if(c.status === 'มีค่าซ่อม รอลูกค้ายืนยัน' && !c.customerDecision){
+      h += '<div class="bg-orange-950/40 border border-orange-700/50 rounded-xl p-3 mb-3">';
+      h += '<div class="text-sm text-orange-300 mb-2">กรุณายืนยันการซ่อม</div>';
+      h += '<div class="grid grid-cols-2 gap-2">';
+      h += '<button onclick="doCustomerConfirm(\''+c.claimCode+'\',\''+phone+'\',\'repair\')" class="bg-emerald-600 hover:bg-emerald-500 py-2 rounded-lg text-sm font-semibold">✓ ยืนยันซ่อม</button>';
+      h += '<button onclick="doCustomerConfirm(\''+c.claimCode+'\',\''+phone+'\',\'reject\')" class="bg-red-600 hover:bg-red-500 py-2 rounded-lg text-sm font-semibold">✗ ไม่ซ่อม ส่งกลับ</button>';
+      h += '</div></div>';
+    }
+
+    if(c.customerDecision){
+      h += '<div class="text-xs text-emerald-400 mb-2">✓ การตัดสินใจของคุณ: '+escapeHtml(c.customerDecision)+'</div>';
+    }
+
+    // เลขพัสดุส่งกลับ
+    if(c.returnTrackingNo){
+      h += '<div class="bg-emerald-950/40 border border-emerald-700/50 rounded-xl p-3 mb-3">';
+      h += '<div class="text-xs text-emerald-300 uppercase mb-1">✓ ส่งกลับแล้ว</div>';
+      h += '<div class="text-sm font-mono">เลขพัสดุ: '+escapeHtml(c.returnTrackingNo)+'</div>';
+      h += '</div>';
+    }
+
+    // รายละเอียด (collapse)
+    h += '<details class="text-xs text-slate-400"><summary class="cursor-pointer hover:text-white">ดูรายละเอียด</summary>';
+    h += '<div class="mt-2 space-y-1 pl-2">';
+    h += '<div>อาการ: '+escapeHtml(c.symptoms)+'</div>';
+    if(c.productCode) h += '<div>รหัสสินค้า: '+escapeHtml(c.productCode)+'</div>';
+    if(c.purchaseDate) h += '<div>ซื้อเมื่อ: '+escapeHtml(c.purchaseDate)+'</div>';
+    if(c.shippingCarrier) h += '<div>ส่งมาด้วย: '+escapeHtml(c.shippingCarrier)+'</div>';
+    if(c.incomingTrackingNo) h += '<div>เลขพัสดุส่งมา: '+escapeHtml(c.incomingTrackingNo)+'</div>';
+    h += '</div></details>';
+
+    h += '</div>';
+  });
+  el('tr-results').innerHTML = h;
+}
+
+function doCustomerConfirm(claimCode, phone, decision){
+  if(!confirm(decision==='repair' ? 'ยืนยันให้ซ่อมต่อ?' : 'ยืนยันไม่ซ่อม และให้ส่งสินค้ากลับเลย?')) return;
+  gRun('customerConfirmRepair',{claimCode:claimCode, phone:phone, decision:decision}).then(function(r){
+    if(!r || !r.success){ toast('❌ '+(r&&r.message||'ผิดพลาด')); return; }
+    toast('✅ บันทึกแล้ว');
+    trackSearch();  // refresh
+  });
+}
+
+function getStatusColor(status){
+  var map = {
+    'รอรับพัสดุเคลม': 'bg-slate-700 text-slate-300',
+    'ได้รับพัสดุแล้ว': 'bg-blue-900/60 text-blue-300',
+    'อยู่ระหว่างตรวจสอบ': 'bg-indigo-900/60 text-indigo-300',
+    'ซ่อมเสร็จ รอส่งกลับ': 'bg-amber-900/60 text-amber-300',
+    'ส่งกลับแล้ว': 'bg-emerald-900/60 text-emerald-300',
+    'ไม่รับเคลม': 'bg-red-900/60 text-red-300',
+    'มีค่าซ่อม รอลูกค้ายืนยัน': 'bg-orange-900/60 text-orange-300'
+  };
+  return map[status] || 'bg-slate-700 text-slate-300';
+}
+
+function escapeHtml(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ── ADMIN CLAIMS ──
+// ═══════════════════════════════════════════════════════════════════
+var CLAIMS_CACHE = [];
+var CLAIM_STATUSES = [
+  'รอรับพัสดุเคลม','ได้รับพัสดุแล้ว','อยู่ระหว่างตรวจสอบ','ซ่อมเสร็จ รอส่งกลับ',
+  'ส่งกลับแล้ว','ไม่รับเคลม','มีค่าซ่อม รอลูกค้ายืนยัน'
+];
+
+function loadClaims(){
+  el('cl-results').innerHTML = '<div class="text-center text-slate-400 py-8 text-sm">กำลังโหลด...</div>';
+  // init filter dropdown
+  var fs = el('cl-filter-status');
+  if(fs && fs.options.length <= 1){
+    var h = '<option value="">ทุกสถานะ</option>';
+    CLAIM_STATUSES.forEach(function(s){ h += '<option value="'+s+'">'+s+'</option>'; });
+    fs.innerHTML = h;
+  }
+  // nav label
+  if(S.user){
+    var nav = el('nav-packer-claims');
+    if(nav) nav.textContent = (S.user.displayName||'')+' · '+(S.user.role==='admin'?'ผู้ดูแล':'พนักงาน');
+  }
+  gRun('getAllClaims',{}).then(function(r){
+    if(!r || !r.success){
+      el('cl-results').innerHTML = '<div class="text-center text-red-400 py-8 text-sm">❌ '+(r&&r.message||'ผิดพลาด')+'</div>';
+      return;
+    }
+    CLAIMS_CACHE = r.claims || [];
+    renderClaims();
+  });
+}
+
+function renderClaims(){
+  var q = (el('cl-search').value || '').toLowerCase().trim();
+  var f = el('cl-filter-status').value || '';
+  var list = CLAIMS_CACHE.filter(function(c){
+    if(f && c.status !== f) return false;
+    if(!q) return true;
+    return [c.customerName, c.phone, c.orderNumber, c.claimCode, c.productName, c.incomingTrackingNo]
+      .some(function(x){ return String(x||'').toLowerCase().indexOf(q) !== -1; });
+  });
+  if(!list.length){
+    el('cl-results').innerHTML = '<div class="text-center text-slate-400 py-8 text-sm">ไม่พบรายการ</div>';
+    return;
+  }
+  var h = '';
+  list.forEach(function(c){
+    var statusColor = getStatusColor(c.status);
+    var assignedBadge = c.assignedPacker ? '<span class="text-xs text-blue-400">👤 '+escapeHtml(c.assignedPacker)+'</span>' : '<span class="text-xs text-slate-500">— ไม่พบคนแพค</span>';
+    h += '<div class="grad-card rounded-xl p-4 hover:border-slate-600 cursor-pointer" onclick="openClaimModal(\''+c.claimCode+'\')">';
+    h += '<div class="flex items-start gap-3 flex-wrap">';
+    h += '<div class="flex-1 min-w-0">';
+    h += '<div class="flex items-center gap-2 mb-1 flex-wrap">';
+    h += '<span class="font-mono text-xs text-slate-500">'+c.claimCode+'</span>';
+    h += '<span class="px-2 py-0.5 rounded-full text-xs font-semibold '+statusColor+'">'+escapeHtml(c.status)+'</span>';
+    h += assignedBadge;
+    h += '</div>';
+    h += '<div class="font-semibold text-sm truncate">'+escapeHtml(c.productName)+'</div>';
+    h += '<div class="text-xs text-slate-400 mt-1">'+escapeHtml(c.customerName)+' · '+escapeHtml(c.phone)+' · ออเดอร์ '+escapeHtml(c.orderNumber)+'</div>';
+    h += '<div class="text-xs text-slate-500 mt-0.5">พัสดุส่งมา: '+escapeHtml(c.incomingTrackingNo)+' · แจ้งเมื่อ '+c.createdDate+'</div>';
+    h += '</div>';
+    h += '<button class="text-xs text-blue-400 hover:underline">แก้ไข →</button>';
+    h += '</div></div>';
+  });
+  el('cl-results').innerHTML = h;
+}
+
+function openClaimModal(claimCode){
+  var c = CLAIMS_CACHE.find(function(x){ return x.claimCode === claimCode; });
+  if(!c) return;
+  var body = el('claim-modal-body');
+  var statusOpts = CLAIM_STATUSES.map(function(s){
+    return '<option value="'+s+'" '+(s===c.status?'selected':'')+'>'+s+'</option>';
+  }).join('');
+
+  var photosHtml = '';
+  if(c.photos && c.photos.length){
+    photosHtml = '<div class="grid grid-cols-4 gap-2 mt-2">';
+    c.photos.forEach(function(fid){
+      var url = 'https://drive.google.com/thumbnail?id='+fid+'&sz=w400';
+      var full = 'https://drive.google.com/file/d/'+fid+'/view';
+      photosHtml += '<a href="'+full+'" target="_blank"><img src="'+url+'" class="w-full h-20 object-cover rounded-lg border border-slate-700 hover:border-blue-500"></a>';
+    });
+    photosHtml += '</div>';
+  } else {
+    photosHtml = '<div class="text-xs text-slate-500">ไม่มีรูปแนบ</div>';
+  }
+
+  var h = '';
+  h += '<div class="space-y-4">';
+
+  // Customer info
+  h += '<div class="bg-slate-800/50 rounded-xl p-4 space-y-1 text-sm">';
+  h += '<div class="flex justify-between"><span class="text-slate-400">รหัส:</span><span class="font-mono">'+c.claimCode+'</span></div>';
+  h += '<div class="flex justify-between"><span class="text-slate-400">ชื่อ:</span><span>'+escapeHtml(c.customerName)+'</span></div>';
+  h += '<div class="flex justify-between"><span class="text-slate-400">เบอร์:</span><span>'+escapeHtml(c.phone)+'</span></div>';
+  h += '<div><span class="text-slate-400">ที่อยู่:</span><div class="text-xs mt-1">'+escapeHtml(c.address)+'</div></div>';
+  h += '<div class="flex justify-between"><span class="text-slate-400">ออเดอร์:</span><span>'+escapeHtml(c.orderNumber)+'</span></div>';
+  h += '<div class="flex justify-between"><span class="text-slate-400">คนแพค:</span><span>'+(c.assignedPacker?escapeHtml(c.assignedPacker):'<span class="text-slate-500">ไม่พบ</span>')+'</span></div>';
+  h += '<div class="flex justify-between"><span class="text-slate-400">วันที่ซื้อ:</span><span>'+(escapeHtml(c.purchaseDate)||'-')+'</span></div>';
+  h += '</div>';
+
+  // Product info
+  h += '<div class="bg-slate-800/50 rounded-xl p-4 space-y-1 text-sm">';
+  h += '<div><span class="text-slate-400">สินค้า:</span> '+escapeHtml(c.productName)+(c.productCode?' ('+escapeHtml(c.productCode)+')':'')+'</div>';
+  h += '<div><span class="text-slate-400">อาการ:</span><div class="text-xs mt-1 whitespace-pre-wrap">'+escapeHtml(c.symptoms)+'</div></div>';
+  h += '<div><span class="text-slate-400">ขนส่งที่ส่งมา:</span> '+(escapeHtml(c.shippingCarrier)||'-')+'</div>';
+  h += '<div><span class="text-slate-400">เลขพัสดุส่งมา:</span> <span class="font-mono">'+escapeHtml(c.incomingTrackingNo)+'</span></div>';
+  h += '<div class="mt-2"><span class="text-slate-400">รูปสินค้า:</span>'+photosHtml+'</div>';
+  h += '</div>';
+
+  // Admin controls
+  h += '<div class="bg-blue-950/30 border border-blue-800/40 rounded-xl p-4 space-y-3">';
+  h += '<div class="font-semibold text-sm">ปรับสถานะ/บันทึกผลซ่อม</div>';
+
+  h += '<div><label class="text-xs text-slate-400 uppercase">สถานะ</label>';
+  h += '<select id="cm-status" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm">'+statusOpts+'</select></div>';
+
+  h += '<div><label class="text-xs text-slate-400 uppercase">ผลการตรวจ/ซ่อม (ลูกค้าเห็น)</label>';
+  h += '<textarea id="cm-diagnosis" rows="2" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm">'+escapeHtml(c.diagnosis||'')+'</textarea></div>';
+
+  h += '<div><label class="text-xs text-slate-400 uppercase">ค่าซ่อม (บาท) — ใส่ 0 ถ้าไม่มี</label>';
+  h += '<input id="cm-cost" type="number" min="0" value="'+(c.repairCost||0)+'" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm"></div>';
+
+  if(c.customerDecision){
+    h += '<div class="text-xs text-emerald-400">📝 ลูกค้าตอบแล้ว: '+escapeHtml(c.customerDecision)+'</div>';
+  }
+
+  h += '<div><label class="text-xs text-slate-400 uppercase">เลขพัสดุส่งกลับ (กรอกแล้วสถานะจะเปลี่ยนเป็น "ส่งกลับแล้ว" อัตโนมัติ)</label>';
+  h += '<input id="cm-return-tracking" type="text" value="'+escapeHtml(c.returnTrackingNo||'')+'" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm"></div>';
+
+  h += '<button onclick="saveClaimUpdate(\''+c.claimCode+'\')" class="w-full bg-blue-600 hover:bg-blue-500 py-2.5 rounded-xl font-semibold text-sm mt-2">💾 บันทึก</button>';
+  h += '</div>';
+
+  h += '<div class="text-xs text-slate-500 text-center">อัปเดตล่าสุด: '+c.updatedDate+'</div>';
+  h += '</div>';
+
+  body.innerHTML = h;
+  el('claim-modal').classList.remove('hidden');
+}
+
+function closeClaimModal(){
+  el('claim-modal').classList.add('hidden');
+}
+
+function saveClaimUpdate(claimCode){
+  var payload = {
+    claimCode: claimCode,
+    status: v('cm-status'),
+    diagnosis: v('cm-diagnosis'),
+    repairCost: Number(v('cm-cost'))||0,
+    returnTrackingNo: v('cm-return-tracking')
+  };
+  gRun('updateClaim', payload).then(function(r){
+    if(!r || !r.success){ toast('❌ '+(r&&r.message||'ผิดพลาด')); return; }
+    toast('✅ บันทึกแล้ว');
+    closeClaimModal();
+    loadClaims();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ── NOTIFICATIONS ──
+// ═══════════════════════════════════════════════════════════════════
+var NOTIF_POLL_IV = null;
+
+function toggleNotifPanel(){
+  var p = el('notif-panel');
+  if(p.classList.contains('hidden')){
+    p.classList.remove('hidden');
+    loadNotifs();
+  } else {
+    p.classList.add('hidden');
+  }
+}
+
+function loadNotifs(){
+  if(!S.user) return;
+  gRun('getNotifications',{username:S.user.username}).then(function(r){
+    if(!r || !r.success) return;
+    renderNotifs(r.notifications || []);
+    updateNotifBadge(r.notifications || []);
+  });
+}
+
+function renderNotifs(list){
+  if(!list.length){
+    el('notif-list').innerHTML = '<div class="text-center text-slate-500 text-sm py-8">ไม่มีแจ้งเตือน</div>';
+    return;
+  }
+  var h = '';
+  list.forEach(function(n){
+    var bg = n.read ? '' : 'bg-blue-950/30';
+    var icon = n.isMine ? '🔔' : '📢';
+    h += '<div class="'+bg+' border-b border-slate-800 px-4 py-3 hover:bg-slate-800/50 cursor-pointer" onclick="clickNotif(\''+n.id+'\',\''+n.relatedId+'\')">';
+    h += '<div class="flex items-start gap-2">';
+    h += '<span class="text-sm">'+icon+'</span>';
+    h += '<div class="flex-1 min-w-0">';
+    h += '<div class="text-xs '+(n.read?'text-slate-400':'text-white')+'">'+escapeHtml(n.message)+'</div>';
+    h += '<div class="text-[10px] text-slate-500 mt-1">'+n.createdDate+'</div>';
+    h += '</div></div></div>';
+  });
+  el('notif-list').innerHTML = h;
+}
+
+function updateNotifBadge(list){
+  var unread = list.filter(function(n){ return !n.read; }).length;
+  ['notif-badge','notif-badge-r'].forEach(function(id){
+    var b = el(id);
+    if(!b) return;
+    if(unread > 0){
+      b.textContent = unread > 9 ? '9+' : String(unread);
+      b.classList.remove('hidden');
+    } else {
+      b.classList.add('hidden');
+    }
+  });
+}
+
+function clickNotif(id, relatedId){
+  gRun('markNotifRead',{id:id}).then(function(){ loadNotifs(); });
+  // ถ้ามี claimCode → เปิด modal (เฉพาะในหน้า claims screen)
+  if(relatedId && relatedId.indexOf('CLM') === 0){
+    // ถ้ายังไม่อยู่ในหน้า claims → ไปก่อน
+    var active = document.querySelector('.screen.active');
+    if(active && active.id !== 'screen-claims'){
+      showScreen('claims');
+      setTimeout(function(){ openClaimModal(relatedId); }, 500);
+    } else {
+      openClaimModal(relatedId);
+    }
+    el('notif-panel').classList.add('hidden');
+  }
+}
+
+function markAllRead(){
+  if(!S.user) return;
+  gRun('markAllNotifRead',{username:S.user.username}).then(function(){ loadNotifs(); });
+}
+
+// เริ่ม polling เมื่อ login สำเร็จ
+function startNotifPolling(){
+  if(NOTIF_POLL_IV) clearInterval(NOTIF_POLL_IV);
+  loadNotifs();
+  NOTIF_POLL_IV = setInterval(loadNotifs, 30000);   // ทุก 30 วินาที
+}
+function stopNotifPolling(){
+  if(NOTIF_POLL_IV){ clearInterval(NOTIF_POLL_IV); NOTIF_POLL_IV = null; }
+}
+
+// Hook: enterApp เดิม → เริ่ม polling
+// Hook: doLogout เดิม → หยุด polling
+var _origEnterApp = enterApp;
+enterApp = function(r, fadeMsg){
+  _origEnterApp(r, fadeMsg);
+  startNotifPolling();
+};
+var _origDoLogout = doLogout;
+doLogout = function(){
+  stopNotifPolling();
+  _origDoLogout();
+};
+
+// Hook: showScreen → โหลดข้อมูลเมื่อเข้า claims
+var _origShowScreen = showScreen;
+showScreen = function(name, fadeMsg){
+  _origShowScreen(name, fadeMsg);
+  setTimeout(function(){
+    if(name === 'claims') loadClaims();
+  }, 400);
+};
+
 Chart.defaults.color='#64748b';Chart.defaults.borderColor='#1e293b';
 </script>
 </body>
