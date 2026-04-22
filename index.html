@@ -2587,6 +2587,14 @@ function openClaimModal(claimCode){
   h += '</div>';
 
   h += '<div class="text-xs text-slate-500 text-center">อัปเดตล่าสุด: '+c.updatedDate+'</div>';
+
+  // ── ปุ่มลบ (เฉพาะ admin) ──
+  if(S.user && S.user.role === 'admin'){
+    h += '<div class="border-t border-red-900/40 pt-3 mt-3">';
+    h += '<button onclick="deleteClaimConfirm(\''+c.claimCode+'\')" class="w-full bg-red-900/40 hover:bg-red-800/60 border border-red-700/50 text-red-300 py-2 rounded-xl text-xs font-semibold">🗑️ ลบรายการนี้ (ลบถาวร)</button>';
+    h += '</div>';
+  }
+
   h += '</div>';
 
   body.innerHTML = h;
@@ -2628,6 +2636,17 @@ function saveClaimUpdate(claimCode){
   gRun('updateClaim', payload).then(function(r){
     if(!r || !r.success){ toast('❌ '+(r&&r.message||'ผิดพลาด')); return; }
     toast('✅ บันทึกแล้ว');
+    closeClaimModal();
+    loadClaims();
+  });
+}
+
+function deleteClaimConfirm(claimCode){
+  if(!S.user || S.user.role !== 'admin'){ toast('⚠️ เฉพาะผู้ดูแลระบบ'); return; }
+  if(!confirm('⚠️ ยืนยันลบรายการเคลม '+claimCode+' ?\nการลบนี้ไม่สามารถกู้คืนได้')) return;
+  gRun('deleteClaim',{claimCode:claimCode}).then(function(r){
+    if(!r || !r.success){ toast('❌ '+(r&&r.message||'ผิดพลาด')); return; }
+    toast('🗑️ ลบแล้ว');
     closeClaimModal();
     loadClaims();
   });
@@ -2835,6 +2854,14 @@ function openTaxModal(invoiceCode){
   h += '</div>';
 
   h += '<div class="text-xs text-slate-500 text-center">อัปเดตล่าสุด: '+t.updatedDate+'</div>';
+
+  // ── ปุ่มลบ (เฉพาะ admin) ──
+  if(S.user && S.user.role === 'admin'){
+    h += '<div class="border-t border-red-900/40 pt-3 mt-3">';
+    h += '<button onclick="deleteTaxInvoiceConfirm(\''+t.invoiceCode+'\')" class="w-full bg-red-900/40 hover:bg-red-800/60 border border-red-700/50 text-red-300 py-2 rounded-xl text-xs font-semibold">🗑️ ลบรายการนี้ (ลบถาวร)</button>';
+    h += '</div>';
+  }
+
   h += '</div>';
 
   el('tax-modal-body').innerHTML = h;
@@ -2854,6 +2881,17 @@ function saveTaxUpdate(invoiceCode){
   }).then(function(r){
     if(!r || !r.success){ toast('❌ '+(r&&r.message||'ผิดพลาด')); return; }
     toast('✅ บันทึกแล้ว');
+    closeTaxModal();
+    loadTaxInvoices();
+  });
+}
+
+function deleteTaxInvoiceConfirm(invoiceCode){
+  if(!S.user || S.user.role !== 'admin'){ toast('⚠️ เฉพาะผู้ดูแลระบบ'); return; }
+  if(!confirm('⚠️ ยืนยันลบใบกำกับภาษี '+invoiceCode+' ?\nการลบนี้ไม่สามารถกู้คืนได้')) return;
+  gRun('deleteTaxInvoice',{invoiceCode:invoiceCode}).then(function(r){
+    if(!r || !r.success){ toast('❌ '+(r&&r.message||'ผิดพลาด')); return; }
+    toast('🗑️ ลบแล้ว');
     closeTaxModal();
     loadTaxInvoices();
   });
