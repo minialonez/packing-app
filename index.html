@@ -6,6 +6,7 @@
 <title>PackingApp</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box}
 body{background:#0f172a;font-family:'Segoe UI',sans-serif;overflow-x:hidden}
@@ -57,6 +58,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="flex items-center gap-1">
 <button onclick="showScreen('dashboard')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📊 รายงาน</button>
 <button onclick="showScreen('returns')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📋 ติดตามคืน</button>
+<button onclick="showScreen('shipping')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🚚 ติดตามส่ง</button>
 <button onclick="showScreen('claims')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🛠️ เคลม</button>
 <button onclick="showScreen('tax')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📄 ใบกำกับ</button>
 <button onclick="toggleNotifPanel()" class="relative text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">
@@ -318,9 +320,10 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 </div>
 
 <!-- สถิติ -->
-<div class="grid grid-cols-3 gap-3">
-<div class="grad-card rounded-2xl p-4 text-center"><div class="text-2xl font-black text-yellow-400" id="rt-kpi-waiting">-</div><div class="text-slate-400 text-xs mt-1">รอตรวจสอบ</div></div>
+<div class="grid grid-cols-4 gap-3">
+<div class="grad-card rounded-2xl p-4 text-center"><div class="text-2xl font-black text-yellow-400" id="rt-kpi-waiting">-</div><div class="text-slate-400 text-xs mt-1">รอของตีกลับ</div></div>
 <div class="grad-card rounded-2xl p-4 text-center"><div class="text-2xl font-black text-emerald-400" id="rt-kpi-checked">-</div><div class="text-slate-400 text-xs mt-1">ตรวจสอบแล้ว</div></div>
+<div class="grad-card rounded-2xl p-4 text-center"><div class="text-2xl font-black text-slate-300" id="rt-kpi-closed">-</div><div class="text-slate-400 text-xs mt-1">ปิดเคสแล้ว</div></div>
 <div class="grad-card rounded-2xl p-4 text-center"><div class="text-2xl font-black text-red-400" id="rt-kpi-lost">-</div><div class="text-slate-400 text-xs mt-1">สูญหาย</div></div>
 </div>
 
@@ -330,8 +333,9 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <h3 class="font-semibold text-sm">📋 รายการทั้งหมด</h3>
 <select id="rt-filter" class="bg-slate-800 border border-slate-700 text-white text-xs rounded-lg px-2 py-1" onchange="renderReturns()">
 <option value="">ทุกสถานะ</option>
-<option value="รอตรวจสอบสินค้าคืน">รอตรวจสอบ</option>
+<option value="รอของตีกลับ">รอของตีกลับ</option>
 <option value="ตรวจสอบสินค้าแล้ว">ตรวจสอบแล้ว</option>
+<option value="ปิดเคสแล้ว">ปิดเคสแล้ว</option>
 <option value="สูญหาย">สูญหาย</option>
 </select>
 </div>
@@ -341,8 +345,9 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <th class="text-left pb-3 pr-3">รหัสคำสั่งซื้อ</th>
 <th class="text-left pb-3 pr-3">เลขพัสดุตีคืน</th>
 <th class="text-left pb-3 pr-3">สถานะ</th>
-<th class="text-left pb-3 pr-3">หมายเหตุ</th>
-<th class="text-left pb-3 pr-3">วันที่</th>
+<th class="text-left pb-3 pr-3">เหตุผล / หมายเหตุ</th>
+<th class="text-left pb-3 pr-3">วันที่แจ้ง</th>
+<th class="text-left pb-3 pr-3">วันปิดเคส</th>
 <th class="text-left pb-3">จัดการ</th>
 </tr></thead>
 <tbody id="rt-tbody" class="text-slate-300"></tbody>
@@ -438,11 +443,17 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div id="return-note-order" class="font-mono text-yellow-400 font-bold mt-1">-</div>
 </div>
 <div class="text-left mb-4">
-<label class="text-xs text-slate-400 mb-2 block">สภาพสินค้าที่ได้รับคืน</label>
-<select id="return-note-select" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500">
-<option value="รับสินค้าคืนในสภาพดี">✅ รับสินค้าคืนในสภาพดี</option>
-<option value="สินค้าแตก/เสียหายจากการขนส่ง">❌ สินค้าแตก/เสียหายจากการขนส่ง</option>
+<label class="text-xs text-slate-400 mb-2 block">เหตุผลการคืน</label>
+<select id="return-note-select" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500" onchange="toggleReturnReasonOther()">
+<option value="ส่งไปผิด">ส่งไปผิด (ผิดสินค้า/ที่อยู่)</option>
+<option value="สินค้าเสียหาย">สินค้าเสียหาย</option>
+<option value="ส่งไม่สำเร็จ">ส่งไม่สำเร็จ (ลูกค้าไม่รับ)</option>
+<option value="ลูกค้าเปลี่ยนใจ">ลูกค้าเปลี่ยนใจ</option>
+<option value="อื่นๆ">อื่นๆ (ระบุ)</option>
 </select>
+<input id="return-note-other" type="text" placeholder="ระบุเหตุผล" class="hidden mt-2 w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500">
+<label class="text-xs text-slate-400 mt-3 mb-2 block">หมายเหตุเพิ่มเติม (ไม่จำเป็น)</label>
+<textarea id="return-note-extra" rows="2" placeholder="เช่น สภาพสินค้า, สาเหตุที่พบ" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-orange-500"></textarea>
 </div>
 <div class="grid grid-cols-2 gap-3">
 <button onclick="cancelReturnNote()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-3 rounded-xl text-sm">ยกเลิก</button>
@@ -793,6 +804,59 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <button onclick="closeTaxModal()" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
 </div>
 <div id="tax-modal-body" class="p-5"></div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SCREEN: SHIPPING TRACKER (ติดตามออเดอร์ส่ง) -->
+<!-- ═══════════════════════════════════════ -->
+<div id="screen-shipping" class="screen min-h-screen flex flex-col">
+<nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center justify-between gap-4">
+<div class="flex items-center gap-4">
+<button onclick="showScreen('record')" class="text-slate-400 hover:text-white text-sm">← กลับ</button>
+<span class="font-bold text-sm">🚚 ติดตามออเดอร์ส่ง</span>
+</div>
+<div class="flex items-center gap-1">
+<button onclick="showScreen('returns')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📋 ติดตามคืน</button>
+<button onclick="showScreen('claims')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🛠️ เคลม</button>
+</div>
+</nav>
+
+<div class="flex-1 overflow-y-auto p-4 max-w-7xl mx-auto w-full">
+
+<!-- Upload area -->
+<div class="grad-card rounded-2xl p-5 mb-4">
+<div class="flex items-start justify-between gap-4 flex-wrap">
+<div class="flex-1 min-w-64">
+<h3 class="font-semibold text-sm mb-1">📤 อัปเดตสถานะจาก Shopee</h3>
+<p class="text-xs text-slate-400">อัปโหลดไฟล์ <code class="bg-slate-800 px-1.5 py-0.5 rounded">Order_completed_*.xlsx</code> จาก Seller Center → ระบบจะ match เลขพัสดุและเปลี่ยนสถานะเป็น "สำเร็จแล้ว"</p>
+</div>
+<div class="flex flex-col gap-2">
+<input id="ship-excel-file" type="file" accept=".xlsx,.xls" class="hidden" onchange="onShippingExcelChosen(event)">
+<button onclick="document.getElementById('ship-excel-file').click()" class="bg-emerald-600 hover:bg-emerald-500 px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap">📂 เลือกไฟล์ Excel</button>
+<button onclick="loadShipping()" class="bg-slate-700 hover:bg-slate-600 px-5 py-2.5 rounded-xl text-sm whitespace-nowrap">🔄 รีเฟรช</button>
+</div>
+</div>
+<div id="ship-upload-progress" class="hidden mt-3 text-xs text-slate-400 bg-slate-800/50 rounded-lg p-3"></div>
+</div>
+
+<!-- Stats summary -->
+<div id="ship-stats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4"></div>
+
+<!-- Filters -->
+<div class="flex items-center gap-3 mb-4 flex-wrap">
+<input id="ship-search" type="text" placeholder="ค้นหา: เลขพัสดุ/ออเดอร์/พนักงาน" class="flex-1 min-w-48 bg-slate-800 border border-slate-600 rounded-xl px-4 py-2.5 text-white text-sm" oninput="renderShipping()">
+<select id="ship-filter-status" class="bg-slate-800 border border-slate-600 rounded-xl px-3 py-2.5 text-white text-sm" onchange="renderShipping()">
+<option value="">ทุกสถานะ</option>
+<option value="กำลังส่ง">กำลังส่ง</option>
+<option value="สำเร็จแล้ว">สำเร็จแล้ว</option>
+<option value="ยกเลิก">ยกเลิก</option>
+<option value="ALERT">⚠️ ค้างเกิน 10 วัน</option>
+</select>
+</div>
+
+<div id="ship-results" class="space-y-2"></div>
+
 </div>
 </div>
 
@@ -1230,44 +1294,55 @@ function renderReturns(){
   var filter=el('rt-filter')?el('rt-filter').value:'';
   var items=filter?returnData.filter(function(x){return x.status===filter;}):returnData;
 
-  // KPIs
-  var w=0,c=0,l=0;
+  // KPIs (รองรับทั้ง status เก่าและใหม่)
+  var w=0,c=0,closed=0,l=0;
   returnData.forEach(function(x){
-    if(x.status==='รอตรวจสอบสินค้าคืน')w++;
+    if(x.status==='รอของตีกลับ' || x.status==='รอตรวจสอบสินค้าคืน')w++;
     else if(x.status==='ตรวจสอบสินค้าแล้ว')c++;
+    else if(x.status==='ปิดเคสแล้ว')closed++;
     else if(x.status==='สูญหาย')l++;
   });
-  el('rt-kpi-waiting').textContent=w;
-  el('rt-kpi-checked').textContent=c;
-  el('rt-kpi-lost').textContent=l;
+  if(el('rt-kpi-waiting')) el('rt-kpi-waiting').textContent=w;
+  if(el('rt-kpi-checked')) el('rt-kpi-checked').textContent=c;
+  if(el('rt-kpi-lost')) el('rt-kpi-lost').textContent=l;
+  if(el('rt-kpi-closed')) el('rt-kpi-closed').textContent=closed;
 
   // Table
   var isAdmin=S.user&&S.user.role==='admin';
   var h='';
-  if(!items.length) h='<tr><td colspan="6" class="py-8 text-center text-slate-500">ยังไม่มีรายการ</td></tr>';
+  if(!items.length) h='<tr><td colspan="7" class="py-8 text-center text-slate-500">ยังไม่มีรายการ</td></tr>';
   else items.forEach(function(r){
     var sc,badge;
-    if(r.status==='รอตรวจสอบสินค้าคืน'){sc='bg-yellow-900/60 text-yellow-300';badge='⏳ รอตรวจสอบ';}
+    if(r.status==='รอของตีกลับ' || r.status==='รอตรวจสอบสินค้าคืน'){sc='bg-yellow-900/60 text-yellow-300';badge='⏳ รอของตีกลับ';}
     else if(r.status==='ตรวจสอบสินค้าแล้ว'){sc='bg-emerald-900/60 text-emerald-300';badge='✅ ตรวจสอบแล้ว';}
+    else if(r.status==='ปิดเคสแล้ว'){sc='bg-slate-600 text-slate-200';badge='🗂️ ปิดเคสแล้ว';}
     else if(r.status==='สูญหาย'){sc='bg-red-900/60 text-red-300';badge='❌ สูญหาย';}
     else{sc='bg-slate-700 text-slate-300';badge=r.status;}
 
-    var noteColor=r.note&&r.note.indexOf('สภาพดี')!==-1?'text-emerald-400':(r.note&&r.note.indexOf('เสียหาย')!==-1?'text-red-400':'text-slate-500');
+    var reasonHtml = r.returnReason ? '<span class="text-xs text-orange-300">'+escapeHtml(r.returnReason)+'</span>' : '<span class="text-slate-600 text-xs">-</span>';
+    var noteHtml = r.note ? '<span class="text-slate-400 text-xs">'+escapeHtml(r.note)+'</span>' : '';
+    var combined = reasonHtml + (noteHtml ? '<br>'+noteHtml : '');
+
     var videoBtn=r.videoFileId?'<button onclick="playVideo(\''+r.videoFileId+'\',\''+r.returnTrackingNo+'\',\'\',\'\',\'\')" class="text-blue-400 hover:underline text-xs">▶</button>'
       +' <a href="https://drive.google.com/uc?export=download&id='+r.videoFileId+'" target="_blank" class="text-slate-400 hover:text-blue-400 text-xs">⬇</a>'
       +' <button onclick="copyShareLinkDirect(\''+r.videoFileId+'\')" class="text-slate-400 hover:text-emerald-400 text-xs">🔗</button>':'';
     var adminBtns='';
-    if(isAdmin && r.status==='รอตรวจสอบสินค้าคืน'){
-      adminBtns='<button onclick="doMatchReturn(\''+r.returnTrackingNo+'\')" class="text-blue-400 hover:underline text-xs ml-1">🔗 จับคู่</button>';
-      adminBtns+='<button onclick="doMarkLost(\''+r.returnTrackingNo+'\')" class="text-red-400 hover:underline text-xs ml-1">แจ้งสูญหาย</button>';
+    if(isAdmin){
+      if(r.status==='รอของตีกลับ' || r.status==='รอตรวจสอบสินค้าคืน'){
+        adminBtns='<button onclick="doMatchReturn(\''+r.returnTrackingNo+'\')" class="text-blue-400 hover:underline text-xs ml-1">🔗 จับคู่</button>';
+        adminBtns+='<button onclick="doMarkLost(\''+r.returnTrackingNo+'\')" class="text-red-400 hover:underline text-xs ml-1">แจ้งสูญหาย</button>';
+      } else if(r.status==='ตรวจสอบสินค้าแล้ว'){
+        adminBtns='<button onclick="adminCloseReturn(\''+r.id+'\')" class="text-emerald-400 hover:underline text-xs ml-1">🗂️ ปิดเคส</button>';
+      }
     }
 
     h+='<tr class="border-b border-slate-800">'
-      +'<td class="py-2 pr-3 font-mono text-yellow-400">'+r.orderNumber+'</td>'
-      +'<td class="py-2 pr-3 font-mono text-blue-400">'+r.returnTrackingNo+'</td>'
+      +'<td class="py-2 pr-3 font-mono text-yellow-400">'+escapeHtml(r.orderNumber)+'</td>'
+      +'<td class="py-2 pr-3 font-mono text-blue-400">'+escapeHtml(r.returnTrackingNo)+'</td>'
       +'<td class="py-2 pr-3"><span class="text-xs px-2 py-0.5 rounded-full '+sc+'">'+badge+'</span></td>'
-      +'<td class="py-2 pr-3"><span class="'+noteColor+' text-xs">'+(r.note||'-')+'</span></td>'
+      +'<td class="py-2 pr-3">'+combined+'</td>'
       +'<td class="py-2 pr-3 text-slate-500 text-xs">'+(r.createdDate||'-')+'</td>'
+      +'<td class="py-2 pr-3 text-slate-500 text-xs">'+(r.closedDate||'-')+'</td>'
       +'<td class="py-2 whitespace-nowrap">'+videoBtn+adminBtns+'</td>'
       +'</tr>';
   });
@@ -1279,7 +1354,7 @@ function doAddReturn(){
   if(!order||!tracking){showInline('rt-add-result','กรุณากรอกข้อมูลให้ครบ','err');return;}
   gRun('addReturn',{orderNumber:order,returnTrackingNo:tracking}).then(function(r){
     if(r.success){
-      var msg=r.autoMatched?'✅ เพิ่มสำเร็จ + พบวิดีโอที่ถ่ายไว้แล้ว!':'✅ เพิ่มสำเร็จ — สถานะ: รอตรวจสอบ';
+      var msg=r.autoMatched?'✅ เพิ่มสำเร็จ + พบวิดีโอที่ถ่ายไว้แล้ว!':'✅ เพิ่มสำเร็จ — สถานะ: รอของตีกลับ';
       showInline('rt-add-result',msg,'ok');
       el('rt-order').value='';el('rt-tracking').value='';
       loadReturns();
@@ -1506,11 +1581,18 @@ function onRecordStop() {
 }
 
 function confirmReturnNote(){
-  var note=el('return-note-select').value;
+  var reasonSel=el('return-note-select').value;
+  var reasonOther=el('return-note-other')?el('return-note-other').value.trim():'';
+  var reason=reasonSel==='อื่นๆ' ? (reasonOther||'อื่นๆ') : reasonSel;
+  var extra=el('return-note-extra')?el('return-note-extra').value.trim():'';
+  // เก็บใน S สำหรับส่งต่อ uploadDone
+  S.returnReason=reason;
+  S.returnExtra=extra;
   el('return-note-popup').classList.add('hidden');
   if(S.pendingUpload){
     var p=S.pendingUpload;
-    doUpload(p.blob,p.fn,p.dur,p.end,note);
+    var noteCombined = extra ? reason+' — '+extra : reason;
+    doUpload(p.blob,p.fn,p.dur,p.end,noteCombined);
     S.pendingUpload=null;
   }
 }
@@ -1518,6 +1600,13 @@ function cancelReturnNote(){
   el('return-note-popup').classList.add('hidden');
   S.pendingUpload=null;
   cancelRecording();
+}
+function toggleReturnReasonOther(){
+  var sel=el('return-note-select');
+  var other=el('return-note-other');
+  if(!sel||!other)return;
+  if(sel.value==='อื่นๆ'){other.classList.remove('hidden');other.focus();}
+  else {other.classList.add('hidden');other.value='';}
 }
 
 // ═══════════════════════════════════════
@@ -1570,17 +1659,30 @@ function resumableUp(blob,fn,info,dur,end,prod){
 function uploadDone(driveData,info,dur,end,prod){
   setUpload(true,90,'บันทึกข้อมูล...');
   var fid=driveData.id||'';
+  var isReturnMode = (S.mode==='return');
   var logData={date:info.date,startTime:S.t0?fmtTime(S.t0):'-',endTime:fmtTime(end),durationSec:dur,
     packer:S.user.displayName,orderNumber:S.orderNumber||'',trackingNumber:'',
     products:prod,fileId:fid,fileURL:fid?'https://drive.google.com/file/d/'+fid+'/view':''};
-  return gRun('savePackingLog',logData).then(function(){
+  // ถ้าเป็นโหมดสินค้าคืน — แนบ metadata ไปให้ backend จับคู่อัตโนมัติ
+  if(isReturnMode){
+    logData.isReturn=true;
+    logData.returnOrderNumber=S.orderNumber||'';
+    logData.returnReason=S.returnReason||'';
+  }
+  return gRun('savePackingLog',logData).then(function(r){
     setUpload(true,100,'✅ สำเร็จ!');
     setTimeout(function(){setUpload(false);showSuccess(logData);
       // เพิ่มเข้า cache พร้อมชื่อคนแพค
       if(S.orderNumber) S.usedOrders[S.orderNumber]={packer:S.user?S.user.displayName:'',date:new Date().toISOString().split('T')[0]};
-      // Auto-match สินค้าคืน → อัปเดต ReturnTracking อัตโนมัติ
-      if(S.mode==='return' && S.rawBarcode) autoMatchReturn(S.rawBarcode, prod, fid);
+      // ถ้าเป็น return mode + backend จับคู่กับ ReturnTracking สำเร็จ → toast แจ้ง
+      if(isReturnMode && r && r.matchedReturn){
+        toast('🔗 จับคู่กับเคสคืน '+r.matchedReturn.returnTrackingNo+' แล้ว');
+      } else if(isReturnMode){
+        // โหมดเดิม: ค้นหา ReturnTracking ที่ตรงกับ raw barcode
+        if(S.rawBarcode) autoMatchReturn(S.rawBarcode, prod, fid);
+      }
       S.uploading=false;S.orderNumber=null;S.trackingNumber=null;S.rawBarcode=null;
+      S.returnReason=null;S.returnExtra=null;
       el('bc-order').textContent='-';el('bc-tracking').textContent='-';
       
       focusScan();
@@ -2327,7 +2429,7 @@ function renderClaimCard(c, phone){
     h += '<div class="text-xs text-slate-400 uppercase mb-1">ผลการตรวจจากช่าง</div>';
     h += '<div class="text-sm">'+escapeHtml(c.diagnosis)+'</div>';
     if(c.repairCost > 0){
-      h += '<div class="text-sm mt-2 text-orange-400">ค่าซ่อม: '+c.repairCost.toLocaleString()+' บาท</div>';
+      h += '<div class="text-sm mt-2 text-orange-400">ค่าซ่อม: '+c.repairCost.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+' บาท</div>';
     }
     h += '</div>';
   }
@@ -2556,7 +2658,7 @@ function openClaimModal(claimCode){
   h += '<textarea id="cm-diagnosis" rows="2" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm">'+escapeHtml(c.diagnosis||'')+'</textarea></div>';
 
   h += '<div><label class="text-xs text-slate-400 uppercase">ค่าซ่อม (บาท) — ใส่ 0 ถ้าไม่มี</label>';
-  h += '<input id="cm-cost" type="number" min="0" value="'+(c.repairCost||0)+'" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm"></div>';
+  h += '<input id="cm-cost" type="number" min="0" step="0.01" value="'+(c.repairCost||0)+'" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm"></div>';
 
   if(c.customerDecision){
     h += '<div class="text-xs text-emerald-400">📝 ลูกค้าตอบแล้ว: '+escapeHtml(c.customerDecision)+'</div>';
@@ -2896,6 +2998,202 @@ function deleteTaxInvoiceConfirm(invoiceCode){
     loadTaxInvoices();
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// ── SHIPPING TRACKER (ติดตามออเดอร์ส่ง) ──
+// ═══════════════════════════════════════════════════════════════════
+var SHIPPING_CACHE = [];
+
+function loadShipping(){
+  el('ship-results').innerHTML = '<div class="text-center text-slate-400 py-8 text-sm">กำลังโหลด...</div>';
+  gRun('getShippingTracker',{}).then(function(r){
+    if(!r || !r.success){
+      el('ship-results').innerHTML = '<div class="text-center text-red-400 py-8 text-sm">❌ '+(r&&r.message||'ผิดพลาด')+'</div>';
+      return;
+    }
+    SHIPPING_CACHE = r.shipping || [];
+    renderShipping();
+  });
+}
+
+function renderShipping(){
+  var q = (el('ship-search').value || '').toLowerCase().trim();
+  var f = el('ship-filter-status').value || '';
+  var list = SHIPPING_CACHE.filter(function(s){
+    if(f === 'ALERT'){ if(!s.alertFlag) return false; }
+    else if(f && s.status !== f) return false;
+    if(!q) return true;
+    return [s.orderNumber, s.trackingNumber, s.packer]
+      .some(function(x){ return String(x||'').toLowerCase().indexOf(q) !== -1; });
+  });
+
+  // Stats summary (ใช้ทั้ง cache, ไม่ใช่ filter)
+  var stats = {transit:0, completed:0, cancelled:0, alert:0};
+  SHIPPING_CACHE.forEach(function(s){
+    if(s.status === 'กำลังส่ง') stats.transit++;
+    else if(s.status === 'สำเร็จแล้ว') stats.completed++;
+    else if(s.status === 'ยกเลิก') stats.cancelled++;
+    if(s.alertFlag) stats.alert++;
+  });
+  var statsHtml = '';
+  statsHtml += '<div class="grad-card rounded-xl p-3 text-center"><div class="text-xs text-slate-400">กำลังส่ง</div><div class="text-2xl font-bold text-blue-400">'+stats.transit+'</div></div>';
+  statsHtml += '<div class="grad-card rounded-xl p-3 text-center"><div class="text-xs text-slate-400">สำเร็จแล้ว</div><div class="text-2xl font-bold text-emerald-400">'+stats.completed+'</div></div>';
+  statsHtml += '<div class="grad-card rounded-xl p-3 text-center"><div class="text-xs text-slate-400">ยกเลิก</div><div class="text-2xl font-bold text-slate-400">'+stats.cancelled+'</div></div>';
+  statsHtml += '<div class="grad-card rounded-xl p-3 text-center'+(stats.alert>0?' border-red-500/50':'')+'"><div class="text-xs text-slate-400">⚠️ ค้างเกิน 10 วัน</div><div class="text-2xl font-bold '+(stats.alert>0?'text-red-400':'text-slate-500')+'">'+stats.alert+'</div></div>';
+  el('ship-stats').innerHTML = statsHtml;
+
+  if(!list.length){
+    el('ship-results').innerHTML = '<div class="text-center text-slate-400 py-8 text-sm">ไม่พบรายการ</div>';
+    return;
+  }
+
+  var h = '';
+  list.forEach(function(s){
+    var statusColor = getShippingStatusColor(s.status);
+    var alertBadge = s.alertFlag ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-900/60 text-red-300">⚠️ ค้าง '+s.daysSince+' วัน</span>' : '';
+    h += '<div class="grad-card rounded-xl p-4">';
+    h += '<div class="flex items-start gap-3 flex-wrap">';
+    h += '<div class="flex-1 min-w-0">';
+    h += '<div class="flex items-center gap-2 mb-1 flex-wrap">';
+    h += '<span class="px-2 py-0.5 rounded-full text-xs font-semibold '+statusColor+'">'+escapeHtml(s.status)+'</span>';
+    h += alertBadge;
+    h += '<span class="text-xs text-slate-500">📅 '+s.date+'</span>';
+    h += '<span class="text-xs text-slate-400">👤 '+escapeHtml(s.packer||'-')+'</span>';
+    h += '</div>';
+    h += '<div class="text-sm">📦 ออเดอร์: <span class="font-mono font-semibold">'+escapeHtml(s.orderNumber||'-')+'</span></div>';
+    h += '<div class="text-xs text-slate-400 mt-0.5">เลขพัสดุ: <span class="font-mono">'+escapeHtml(s.trackingNumber||'-')+'</span></div>';
+    if(s.statusUpdatedAt){
+      h += '<div class="text-xs text-slate-500 mt-0.5">อัปเดตสถานะ: '+s.statusUpdatedAt+'</div>';
+    }
+    h += '</div>';
+    // Action buttons
+    h += '<div class="flex flex-col gap-1">';
+    h += '<select onchange="changeShippingStatus(\''+s.trackingNumber+'\', this.value)" class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-xs text-white">';
+    ['กำลังส่ง','สำเร็จแล้ว','ยกเลิก'].forEach(function(st){
+      h += '<option value="'+st+'" '+(st===s.status?'selected':'')+'>'+st+'</option>';
+    });
+    h += '</select>';
+    if(s.videoFileId){
+      h += '<a href="https://drive.google.com/file/d/'+s.videoFileId+'/view" target="_blank" class="bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded-lg text-xs text-center">▶️ ดูวิดีโอ</a>';
+    }
+    h += '</div>';
+    h += '</div></div>';
+  });
+  el('ship-results').innerHTML = h;
+}
+
+function getShippingStatusColor(status){
+  var map = {
+    'กำลังส่ง': 'bg-blue-900/60 text-blue-300',
+    'สำเร็จแล้ว': 'bg-emerald-900/60 text-emerald-300',
+    'ยกเลิก': 'bg-slate-700 text-slate-400'
+  };
+  return map[status] || 'bg-slate-700 text-slate-300';
+}
+
+function changeShippingStatus(trackingNumber, newStatus){
+  gRun('updateShippingStatus',{trackingNumber:trackingNumber, status:newStatus}).then(function(r){
+    if(!r || !r.success){ toast('❌ '+(r&&r.message||'ผิดพลาด')); return; }
+    toast('✅ อัปเดตเป็น '+newStatus);
+    loadShipping();
+  });
+}
+
+// ── Excel upload ──
+function onShippingExcelChosen(ev){
+  var f = ev.target.files[0];
+  if(!f) return;
+  if(typeof XLSX === 'undefined'){ toast('❌ SheetJS ยังไม่โหลด รอสักครู่แล้วลองใหม่'); return; }
+
+  var prog = el('ship-upload-progress');
+  prog.classList.remove('hidden');
+  prog.textContent = '📖 กำลังอ่านไฟล์ '+f.name+'...';
+
+  var reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      var wb = XLSX.read(e.target.result, {type:'array'});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+
+      // ชื่อ column ในไฟล์ Shopee: '*หมายเลขติดตามพัสดุ' และ 'หมายเลขคำสั่งซื้อ'
+      var keyTracking = null, keyOrder = null;
+      if(rows.length){
+        var keys = Object.keys(rows[0]);
+        keys.forEach(function(k){
+          if(!keyTracking && (k.indexOf('หมายเลขติดตามพัสดุ') !== -1 || k.toLowerCase().indexOf('tracking') !== -1)) keyTracking = k;
+          if(!keyOrder && (k.indexOf('หมายเลขคำสั่งซื้อ') !== -1 || k.toLowerCase().indexOf('order') !== -1)) keyOrder = k;
+        });
+      }
+      if(!keyTracking){
+        prog.textContent = '❌ ไม่พบคอลัมน์ "หมายเลขติดตามพัสดุ" ในไฟล์';
+        return;
+      }
+
+      // dedupe ที่ frontend
+      var seen = {};
+      var payload = [];
+      rows.forEach(function(r){
+        var t = String(r[keyTracking]||'').trim();
+        if(!t || seen[t]) return;
+        seen[t] = true;
+        payload.push({trackingNumber:t, orderNumber:String(r[keyOrder||'']||'').trim()});
+      });
+
+      prog.textContent = '📤 พบ '+payload.length+' tracking unique จาก '+rows.length+' rows — กำลังส่งให้ระบบจับคู่...';
+
+      // ส่ง chunked เผื่อ payload ใหญ่ (GAS รับได้จำกัด)
+      var CHUNK = 500;
+      var chunks = [];
+      for(var i=0; i<payload.length; i+=CHUNK){ chunks.push(payload.slice(i, i+CHUNK)); }
+
+      var totalMatched = 0;
+      var seq = Promise.resolve();
+      chunks.forEach(function(c, idx){
+        seq = seq.then(function(){
+          prog.textContent = '📤 อัปโหลด chunk '+(idx+1)+'/'+chunks.length+' ('+c.length+' รายการ)...';
+          return gRun('matchExcelOrders',{rows:c}).then(function(r){
+            if(r && r.success) totalMatched += (r.matched||0);
+          });
+        });
+      });
+      seq.then(function(){
+        prog.textContent = '✅ อัปเดตสถานะ "สำเร็จแล้ว" ทั้งหมด '+totalMatched+' รายการ';
+        loadShipping();
+        setTimeout(function(){ prog.classList.add('hidden'); ev.target.value=''; }, 5000);
+      }).catch(function(err){
+        prog.textContent = '❌ '+(err.message||err);
+      });
+
+    } catch(err){
+      prog.textContent = '❌ อ่านไฟล์ไม่ได้: '+(err.message||err);
+    }
+  };
+  reader.readAsArrayBuffer(f);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ── RETURN CLOSE CASE (admin) ──
+// ═══════════════════════════════════════════════════════════════════
+function adminCloseReturn(returnId){
+  var note = prompt('หมายเหตุการปิดเคส (ไม่จำเป็น):');
+  if(note === null) return;   // กดยกเลิก
+  if(!confirm('ยืนยันปิดเคสนี้?')) return;
+  gRun('closeReturnCase',{id:returnId, adminNote:note}).then(function(r){
+    if(!r || !r.success){ toast('❌ '+(r&&r.message||'ผิดพลาด')); return; }
+    toast('✅ ปิดเคสแล้ว');
+    if(typeof loadReturns === 'function') loadReturns();
+  });
+}
+
+// ── Hook: showScreen → load shipping when entering ──
+var _origShowScreenForShip = showScreen;
+showScreen = function(name, fadeMsg){
+  _origShowScreenForShip(name, fadeMsg);
+  setTimeout(function(){
+    if(name === 'shipping') loadShipping();
+  }, 400);
+};
 
 Chart.defaults.color='#64748b';Chart.defaults.borderColor='#1e293b';
 </script>
