@@ -1679,34 +1679,60 @@ function uploadDone(driveData,info,dur,end,prod){
   setUpload(true,90,'บันทึกข้อมูล...');
   var fid=driveData.id||'';
   var isReturnMode = (S.mode==='return');
+  // พนักงานยิงแค่เลขพัสดุ — orderNumber จะมาจาก Excel match ภายหลัง
+  // ใช้ S.rawBarcode เป็น tracking number (เพราะ S.orderNumber/S.trackingNumber ใน flow เดิมจะ duplicate กัน)
+  var trackingNo = S.trackingNumber || S.orderNumber || S.rawBarcode || '';
   var logData={date:info.date,startTime:S.t0?fmtTime(S.t0):'-',endTime:fmtTime(end),durationSec:dur,
-    packer:S.user.displayName,orderNumber:S.orderNumber||'',trackingNumber:'',
+    packer:S.user.displayName,orderNumber:'',trackingNumber:trackingNo,
     products:prod,fileId:fid,fileURL:fid?'https://drive.google.com/file/d/'+fid+'/view':''};
   // ถ้าเป็นโหมดสินค้าคืน — แนบ metadata ไปให้ backend จับคู่อัตโนมัติ
   if(isReturnMode){
     logData.isReturn=true;
-    logData.returnOrderNumber=S.orderNumber||'';
+    logData.returnOrderNumber=S.orderNumber||'';   // ในโหมด return ใช้ S.orderNumber เป็น order
     logData.returnReason=S.returnReason||'';
   }
   return gRun('savePackingLog',logData).then(function(r){
-    setUpload(true,100,'✅ สำเร็จ!');
-    setTimeout(function(){setUpload(false);showSuccess(logData);
-      // เพิ่มเข้า cache พร้อมชื่อคนแพค
-      if(S.orderNumber) S.usedOrders[S.orderNumber]={packer:S.user?S.user.displayName:'',date:new Date().toISOString().split('T')[0]};
-      // ถ้าเป็น return mode + backend จับคู่กับ ReturnTracking สำเร็จ → toast แจ้ง
-      if(isReturnMode && r && r.matchedReturn){
-        toast('🔗 จับคู่กับเคสคืน '+r.matchedReturn.returnTrackingNo+' แล้ว');
-      } else if(isReturnMode){
-        // โหมดเดิม: ค้นหา ReturnTracking ที่ตรงกับ raw barcode
-        if(S.rawBarcode) autoMatchReturn(S.rawBarcode, prod, fid);
+    // ── Backend ตอบกลับว่า duplicate → ถามผู้ใช้ก่อน ──
+    if(r && r.duplicate){
+      setUpload(false);
+      var existing = r.existing || {};
+      var dupKey = S.trackingNumber || S.orderNumber || S.rawBarcode || '-';
+      var msg = '⚠️ เลขพัสดุ '+dupKey+' เคยแพคแล้ว!\n'
+        + 'แพคโดย: '+(existing.packer||'-')+'\n'
+        + 'วันที่: '+(existing.date||'-')+'\n\n'
+        + 'ต้องการบันทึกซ้ำหรือไม่?';
+      if(confirm(msg)){
+        // บันทึกซ้ำ — ส่ง allowDuplicate=true
+        logData.allowDuplicate = true;
+        setUpload(true,90,'บันทึกข้อมูล (ซ้ำ)...');
+        return gRun('savePackingLog', logData).then(function(r2){ return finishUpload(r2, isReturnMode, prod, fid, logData); });
+      } else {
+        // ยกเลิก
+        S.uploading=false; S.orderNumber=null; S.trackingNumber=null; S.rawBarcode=null;
+        el('bc-order').textContent='-'; el('bc-tracking').textContent='-';
+        focusScan();
+        toast('❎ ยกเลิกการบันทึกซ้ำ');
+        return;
       }
-      S.uploading=false;S.orderNumber=null;S.trackingNumber=null;S.rawBarcode=null;
-      S.returnReason=null;S.returnExtra=null;
-      el('bc-order').textContent='-';el('bc-tracking').textContent='-';
-      
-      focusScan();
-    },1200);
+    }
+    return finishUpload(r, isReturnMode, prod, fid, logData);
   });
+}
+
+function finishUpload(r, isReturnMode, prod, fid, logData){
+  setUpload(true,100,'✅ สำเร็จ!');
+  setTimeout(function(){setUpload(false);showSuccess(logData);
+    if(S.orderNumber) S.usedOrders[S.orderNumber]={packer:S.user?S.user.displayName:'',date:new Date().toISOString().split('T')[0]};
+    if(isReturnMode && r && r.matchedReturn){
+      toast('🔗 จับคู่กับเคสคืน '+r.matchedReturn.returnTrackingNo+' แล้ว');
+    } else if(isReturnMode){
+      if(S.rawBarcode) autoMatchReturn(S.rawBarcode, prod, fid);
+    }
+    S.uploading=false;S.orderNumber=null;S.trackingNumber=null;S.rawBarcode=null;
+    S.returnReason=null;S.returnExtra=null;
+    el('bc-order').textContent='-';el('bc-tracking').textContent='-';
+    focusScan();
+  },1200);
 }
 
 // ═══════════════════════════════════════
@@ -3161,23 +3187,32 @@ function onShippingExcelChosen(ev){
 
       prog.textContent = '📤 พบ '+payload.length+' tracking unique จาก '+rows.length+' rows — กำลังส่งให้ระบบจับคู่...';
 
-      // ส่ง chunked เผื่อ payload ใหญ่ (GAS รับได้จำกัด)
-      var CHUNK = 200;
+      // ส่ง chunked + parallel (3 chunks at once) — เร็วกว่าเดิม ~3x
+      var CHUNK = 800;
+      var PARALLEL = 3;
       var chunks = [];
       for(var i=0; i<payload.length; i+=CHUNK){ chunks.push(payload.slice(i, i+CHUNK)); }
 
+      prog.textContent = '📤 อัปโหลด '+chunks.length+' chunks (parallel '+PARALLEL+')...';
       var totalMatched = 0;
-      var seq = Promise.resolve();
-      chunks.forEach(function(c, idx){
-        seq = seq.then(function(){
-          prog.textContent = '📤 อัปโหลด chunk '+(idx+1)+'/'+chunks.length+' ('+c.length+' รายการ)...';
-          // ใช้ POST ตรง ๆ เพราะ rows เป็น array
-          return gRunPost('matchExcelOrders',{rows:c}).then(function(r){
-            if(r && r.success) totalMatched += (r.matched||0);
-            else if(r && r.message) console.error('chunk '+idx+' err:', r.message);
-          });
+      var done = 0;
+
+      // สร้าง worker pool
+      var idx = 0;
+      function worker(){
+        if(idx >= chunks.length) return Promise.resolve();
+        var c = chunks[idx++];
+        return gRunPost('matchExcelOrders',{rows:c}).then(function(r){
+          if(r && r.success) totalMatched += (r.matched||0);
+          else if(r && r.message) console.error('chunk err:', r.message);
+          done++;
+          prog.textContent = '📤 อัปโหลด '+done+'/'+chunks.length+' chunks เสร็จ ('+totalMatched+' รายการ)...';
+          return worker();   // ทำต่อ chunk ถัดไปเมื่อ slot ว่าง
         });
-      });
+      }
+      var pool = [];
+      for(var w=0; w<Math.min(PARALLEL, chunks.length); w++){ pool.push(worker()); }
+      var seq = Promise.all(pool);
       seq.then(function(){
         prog.textContent = '✅ อัปเดตสถานะ "สำเร็จแล้ว" ทั้งหมด '+totalMatched+' รายการ';
         loadShipping();
