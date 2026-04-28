@@ -835,6 +835,30 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div id="ship-upload-progress" class="hidden mt-3 text-xs text-slate-400 bg-slate-800/50 rounded-lg p-3"></div>
 </div>
 
+<!-- เพิ่มเคสตีกลับด้วยมือ (admin) -->
+<div id="ship-return-form" class="hidden grad-card rounded-2xl p-5 mb-4 border border-orange-700/30">
+<h3 class="font-semibold text-sm mb-3">↩️ เพิ่มเคสรอตรวจสินค้าตีคืน</h3>
+<p class="text-xs text-slate-400 mb-3">กรอกล่วงหน้าก่อนของจะมาถึง — เมื่อพนักงานยิง barcode สินค้าตีคืน ระบบจะจับคู่อัตโนมัติ</p>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+<div>
+<label class="text-xs text-slate-400">เลขคำสั่งซื้อ *</label>
+<input id="ret-order" type="text" placeholder="เช่น 251234567ABC" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-orange-500">
+</div>
+<div>
+<label class="text-xs text-slate-400">เลขพัสดุตีคืน *</label>
+<input id="ret-tracking" type="text" placeholder="เช่น TH2607..." class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-orange-500">
+</div>
+<div>
+<label class="text-xs text-slate-400">หมายเหตุ (เหตุผลที่คืน)</label>
+<input id="ret-note" type="text" placeholder="เช่น ลูกค้าแจ้งสินค้าผิดรุ่น" class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500">
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button onclick="doAddReturnCase()" class="bg-orange-600 hover:bg-orange-500 text-sm font-semibold px-5 py-2 rounded-xl">+ เพิ่มเคส</button>
+<div id="ret-add-result" class="hidden text-xs"></div>
+</div>
+</div>
+
 <!-- Stats summary -->
 <div id="ship-stats" class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4"></div>
 
@@ -2961,7 +2985,10 @@ function loadShipping(){
   // แสดงปุ่ม admin only
   var resetBtn = el('ship-reset-btn');
   var matchBtn = el('ship-match-all-btn');
-  if(S.user && S.user.role === 'admin'){
+  var retForm = el('ship-return-form');
+  var isAdmin = S.user && S.user.role === 'admin';
+  if(retForm){ retForm.classList.toggle('hidden', !isAdmin); }
+  if(isAdmin){
     if(resetBtn) resetBtn.classList.remove('hidden');
     if(matchBtn) matchBtn.classList.remove('hidden');
   } else {
@@ -2975,6 +3002,37 @@ function loadShipping(){
     }
     SHIPPING_CACHE = r.shipping || [];
     renderShipping();
+  });
+}
+
+// Admin เพิ่มเคสตีกลับด้วยมือ — ก่อนของมาถึง
+function doAddReturnCase(){
+  var order = (el('ret-order').value||'').trim();
+  var tracking = (el('ret-tracking').value||'').trim();
+  var note = (el('ret-note').value||'').trim();
+  var resultDiv = el('ret-add-result');
+  if(!order || !tracking){
+    resultDiv.className = 'text-xs text-red-400';
+    resultDiv.textContent = '⚠️ ต้องกรอกเลขคำสั่งซื้อและเลขพัสดุตีคืน';
+    resultDiv.classList.remove('hidden');
+    return;
+  }
+  gRun('addReturn',{orderNumber:order, returnTrackingNo:tracking, note:note}).then(function(r){
+    if(!r || !r.success){
+      resultDiv.className = 'text-xs text-red-400';
+      resultDiv.textContent = '❌ '+(r&&r.message||'ผิดพลาด');
+      resultDiv.classList.remove('hidden');
+      return;
+    }
+    var msg = r.autoMatched ? '✅ เพิ่มสำเร็จ + จับคู่กับวิดีโอที่ถ่ายไว้แล้ว!' : '✅ เพิ่มสำเร็จ — สถานะ: รอของตีกลับ';
+    resultDiv.className = 'text-xs text-emerald-400';
+    resultDiv.textContent = msg;
+    resultDiv.classList.remove('hidden');
+    el('ret-order').value = '';
+    el('ret-tracking').value = '';
+    el('ret-note').value = '';
+    setTimeout(function(){ resultDiv.classList.add('hidden'); }, 4000);
+    loadShipping();
   });
 }
 
