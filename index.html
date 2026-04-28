@@ -23,6 +23,16 @@ body{background:#0f172a;font-family:'Segoe UI',sans-serif;overflow-x:hidden}
 tbody tr:hover{background:rgba(255,255,255,.03)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .spin{animation:spin .8s linear infinite;display:inline-block}
+/* ── Print styles for shipping bill ── */
+@media print {
+  body * { visibility: hidden !important; }
+  #bill-modal, #bill-modal * { visibility: visible !important; }
+  #bill-modal { position: absolute !important; inset: 0 !important; background: #fff !important; padding: 0 !important; overflow: visible !important; }
+  #bill-modal > div { box-shadow: none !important; margin: 0 !important; max-width: 100% !important; }
+  .print\:hidden { display: none !important; }
+  .bill-cancelled td { text-decoration: line-through; color: #999 !important; }
+}
+.bill-cancelled-row td { text-decoration: line-through; color: #94a3b8; }
 .grad-card{background:linear-gradient(135deg,#1e293b,#0f172a);border:1px solid #334155}
 </style>
 </head>
@@ -59,6 +69,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <button onclick="showScreen('dashboard')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📊 รายงาน</button>
 
 <button onclick="showScreen('shipping')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🚚 ติดตามส่ง</button>
+<button onclick="showScreen('bill')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📋 ใบส่งสินค้า</button>
 <button onclick="showScreen('claims')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🛠️ เคลม</button>
 <button onclick="showScreen('tax')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📄 ใบกำกับ</button>
 <button onclick="toggleNotifPanel()" class="relative text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">
@@ -684,8 +695,114 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 </div>
 
 <!-- ═══════════════════════════════════════ -->
-<!-- SCREEN: SHIPPING TRACKER (ติดตามออเดอร์ส่ง) -->
+<!-- SCREEN: SHIPPING BILL (ใบส่งสินค้า) -->
 <!-- ═══════════════════════════════════════ -->
+<div id="screen-bill" class="screen min-h-screen flex flex-col">
+<nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center justify-between gap-4">
+<div class="flex items-center gap-4">
+<button onclick="showScreen('record')" class="text-slate-400 hover:text-white text-sm">← กลับ</button>
+<span class="font-bold text-sm">📋 ใบส่งสินค้า</span>
+</div>
+<div class="flex items-center gap-1">
+<button id="bill-tab-pending" onclick="switchBillTab('pending')" class="px-3 py-1.5 rounded-lg text-xs">📥 ยิงสะสม</button>
+<button id="bill-tab-history" onclick="switchBillTab('history')" class="px-3 py-1.5 rounded-lg text-xs">📜 ประวัติใบส่ง</button>
+</div>
+</nav>
+
+<div class="flex-1 overflow-y-auto p-4 max-w-7xl mx-auto w-full">
+
+<!-- ── TAB: PENDING (ยิงสะสม) ── -->
+<div id="bill-pane-pending">
+
+<!-- Overdue alert banner -->
+<div id="bill-overdue-alert" class="hidden bg-red-950/40 border border-red-700/50 rounded-2xl p-4 mb-4">
+<div class="flex items-center gap-2 mb-1"><span class="text-red-400">⚠️</span>
+<span class="text-sm font-semibold text-red-300">มีออเดอร์ค้างเกิน 2 วันยังไม่ส่ง</span>
+<button onclick="showOverdueDetail()" class="ml-auto text-xs text-red-300 hover:underline">ดูรายการ</button>
+</div>
+<div id="bill-overdue-count" class="text-xs text-red-400/80"></div>
+</div>
+
+<!-- Scan input -->
+<div class="grad-card rounded-2xl p-5 mb-4">
+<h3 class="font-semibold text-sm mb-2">📥 ยิงเลขพัสดุที่จะนำส่ง</h3>
+<p class="text-xs text-slate-400 mb-3">ยิง barcode หรือพิมพ์เลขพัสดุแล้วกด Enter — ระบบจะเช็คว่าตรงกับ PackingLog หรือไม่</p>
+<div class="flex gap-2 mb-3">
+<input id="bill-scan" type="text" placeholder="ยิงหรือพิมพ์เลขพัสดุที่นี่..." class="flex-1 bg-slate-800 border-2 border-emerald-700 focus:border-emerald-500 rounded-xl px-4 py-3 text-white font-mono text-base focus:outline-none" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();onBillScan();}">
+<button onclick="onBillScan()" class="bg-emerald-600 hover:bg-emerald-500 px-5 rounded-xl text-sm font-semibold whitespace-nowrap">+ เพิ่ม</button>
+</div>
+<div id="bill-scan-result" class="text-xs"></div>
+</div>
+
+<!-- Pending list -->
+<div class="grad-card rounded-2xl p-5 mb-4">
+<div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+<h3 class="font-semibold text-sm">📋 รายการรอปริ้น (<span id="bill-pending-count">0</span>)</h3>
+<div class="flex items-center gap-2 flex-wrap">
+<input id="bill-pending-search" type="text" placeholder="ค้นหา..." class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-xs" oninput="renderPending()">
+<button onclick="loadPendingShipments()" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs">🔄</button>
+<button onclick="selectAllPending(true)" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs">เลือกทั้งหมด</button>
+<button onclick="selectAllPending(false)" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs">ล้าง</button>
+</div>
+</div>
+<div id="bill-pending-list" class="space-y-1"></div>
+</div>
+
+<!-- Choose carrier + create bill -->
+<div class="grad-card rounded-2xl p-5">
+<h3 class="font-semibold text-sm mb-3">🚚 ออกใบส่ง</h3>
+<div class="grid md:grid-cols-3 gap-3 mb-3">
+<div>
+<label class="text-xs text-slate-400">ขนส่งที่มารับ *</label>
+<select id="bill-carrier" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2.5 text-white text-sm">
+<option value="">-- เลือกขนส่ง --</option>
+</select>
+<input id="bill-carrier-other" type="text" placeholder="ระบุขนส่งอื่นๆ" class="hidden mt-2 w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2.5 text-white text-sm">
+</div>
+<div class="md:col-span-2">
+<label class="text-xs text-slate-400">หมายเหตุ (ไม่บังคับ)</label>
+<input id="bill-note" type="text" placeholder="เช่น รอบเช้า / รอบบ่าย" class="mt-1 w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2.5 text-white text-sm">
+</div>
+</div>
+<div class="flex items-center gap-2 flex-wrap">
+<div class="text-xs text-slate-400 mr-auto">เลือก: <span id="bill-selected-count" class="text-white font-semibold">0</span> รายการ</div>
+<button onclick="previewBill()" class="bg-blue-600 hover:bg-blue-500 px-5 py-2.5 rounded-xl text-sm font-semibold">📄 ดูใบส่ง / ปริ้น</button>
+</div>
+</div>
+
+</div>
+
+<!-- ── TAB: HISTORY (ประวัติใบส่ง) ── -->
+<div id="bill-pane-history" class="hidden">
+<div class="grad-card rounded-2xl p-5">
+<div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+<h3 class="font-semibold text-sm">📜 ประวัติใบส่งทั้งหมด</h3>
+<input id="bill-history-search" type="text" placeholder="ค้นหา bill/ขนส่ง/ผู้ปริ้น..." class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-xs" oninput="renderBillHistory()">
+<button onclick="loadBillHistory()" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs">🔄</button>
+</div>
+<div id="bill-history-list" class="space-y-2"></div>
+</div>
+</div>
+
+</div>
+</div>
+
+<!-- Bill Preview Modal (ใช้ทั้งสร้างใหม่ + ดูประวัติ) -->
+<div id="bill-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 overflow-y-auto p-4">
+<div class="max-w-4xl mx-auto bg-white text-slate-900 rounded-2xl my-4">
+<div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between print:hidden">
+<div class="font-bold text-sm">📄 ตัวอย่างใบส่งสินค้า</div>
+<div class="flex items-center gap-2">
+<button id="bill-edit-btn" onclick="toggleBillEdit()" class="hidden bg-orange-500 hover:bg-orange-400 text-white px-3 py-1.5 rounded-lg text-xs">✏️ แก้ไข</button>
+<button id="bill-save-btn" onclick="saveBillEdit()" class="hidden bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs">💾 บันทึก</button>
+<button onclick="window.print()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs">🖨️ ปริ้น</button>
+<button id="bill-print-save-btn" onclick="confirmCreateBill()" class="hidden bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded-lg text-xs font-semibold">✅ ยืนยันสร้างใบส่ง</button>
+<button onclick="closeBillModal()" class="text-slate-500 hover:text-slate-700 text-xl ml-1">✕</button>
+</div>
+</div>
+<div id="bill-modal-body" class="p-6"></div>
+</div>
+</div>
 <div id="screen-shipping" class="screen min-h-screen flex flex-col">
 <nav class="bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center justify-between gap-4">
 <div class="flex items-center gap-4">
@@ -3162,6 +3279,390 @@ showScreen = function(name, fadeMsg){
   _origShowScreenForShip(name, fadeMsg);
   setTimeout(function(){
     if(name === 'shipping') loadShipping();
+  }, 400);
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// ── SHIPPING BILL (ใบส่งสินค้า) ──
+// ═══════════════════════════════════════════════════════════════════
+var BILL_PENDING_CACHE = [];
+var BILL_HISTORY_CACHE = [];
+var BILL_CURRENT = null;       // ใบส่งที่กำลังดู (สำหรับ history)
+var BILL_PREVIEW_DATA = null;  // ใบที่กำลัง preview จะสร้างใหม่
+var BILL_EDIT_MODE = false;
+
+function switchBillTab(tab){
+  var paneP = el('bill-pane-pending'), paneH = el('bill-pane-history');
+  var btnP = el('bill-tab-pending'), btnH = el('bill-tab-history');
+  var active = ['bg-blue-600','text-white'];
+  var inactive = ['text-slate-400','hover:text-white','hover:bg-slate-800'];
+  if(tab === 'history'){
+    paneP.classList.add('hidden'); paneH.classList.remove('hidden');
+    active.forEach(function(c){btnH.classList.add(c);btnP.classList.remove(c);});
+    inactive.forEach(function(c){btnP.classList.add(c);btnH.classList.remove(c);});
+    loadBillHistory();
+  } else {
+    paneH.classList.add('hidden'); paneP.classList.remove('hidden');
+    active.forEach(function(c){btnP.classList.add(c);btnH.classList.remove(c);});
+    inactive.forEach(function(c){btnH.classList.add(c);btnP.classList.remove(c);});
+    loadPendingShipments();
+    loadOverdueAlert();
+  }
+}
+
+function loadPendingShipments(){
+  el('bill-pending-list').innerHTML = '<div class="text-center text-slate-400 py-4 text-sm">กำลังโหลด...</div>';
+  gRun('getPendingShipments',{}).then(function(r){
+    if(!r || !r.success){ el('bill-pending-list').innerHTML = '<div class="text-center text-red-400 py-4 text-sm">❌ '+(r&&r.message||'')+'</div>'; return; }
+    BILL_PENDING_CACHE = r.pending || [];
+    renderPending();
+  });
+}
+
+function renderPending(){
+  var q = (el('bill-pending-search').value||'').toLowerCase().trim();
+  var list = q
+    ? BILL_PENDING_CACHE.filter(function(p){ return [p.trackingNumber,p.orderNumber,p.packer].some(function(x){return String(x||'').toLowerCase().indexOf(q)!==-1;}); })
+    : BILL_PENDING_CACHE;
+  el('bill-pending-count').textContent = BILL_PENDING_CACHE.length;
+  if(!list.length){
+    el('bill-pending-list').innerHTML = '<div class="text-center text-slate-500 py-6 text-sm">'+(q?'ไม่พบรายการที่ค้นหา':'ยังไม่มีรายการ — ยิงเลขพัสดุเพื่อเริ่มสะสม')+'</div>';
+    updateSelectedCount();
+    return;
+  }
+  var h = '';
+  list.forEach(function(p){
+    var warn = !p.inSystem ? '<span class="text-xs px-2 py-0.5 rounded bg-yellow-900/60 text-yellow-300 ml-2">⚠️ ไม่อยู่ใน PackingLog</span>' : '';
+    h += '<div class="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-800/50">';
+    h += '<input type="checkbox" class="bill-check w-4 h-4" data-tn="'+escapeHtml(p.trackingNumber)+'" onchange="updateSelectedCount()">';
+    h += '<div class="flex-1 min-w-0">';
+    h += '<div class="flex items-center gap-2 flex-wrap">';
+    h += '<span class="font-mono text-sm">'+escapeHtml(p.trackingNumber)+'</span>';
+    h += warn;
+    h += '</div>';
+    h += '<div class="text-xs text-slate-500">';
+    if(p.orderNumber) h += '📦 '+escapeHtml(p.orderNumber)+' · ';
+    if(p.packer) h += '👤 '+escapeHtml(p.packer)+' · ';
+    if(p.packedDate) h += '📅 '+p.packedDate;
+    h += '</div></div>';
+    h += '<button onclick="removePending(\''+p.trackingNumber+'\')" class="text-red-400 hover:text-red-300 text-xs">✕</button>';
+    h += '</div>';
+  });
+  el('bill-pending-list').innerHTML = h;
+  updateSelectedCount();
+}
+
+function selectAllPending(check){
+  document.querySelectorAll('.bill-check').forEach(function(c){ c.checked = check; });
+  updateSelectedCount();
+}
+function updateSelectedCount(){
+  var n = document.querySelectorAll('.bill-check:checked').length;
+  el('bill-selected-count').textContent = n;
+}
+
+function onBillScan(){
+  var inp = el('bill-scan');
+  var code = (inp.value||'').trim();
+  if(!code) return;
+  if(/[\u0E00-\u0E7F]/.test(code)){
+    showBillScanResult('⚠️ บาร์โค้ดไม่รองรับภาษาไทย', 'err');
+    inp.value=''; inp.focus(); return;
+  }
+  inp.value=''; inp.focus();
+  gRun('addPendingShipment',{trackingNumber:code, username:S.user.username}).then(function(r){
+    if(!r) return;
+    if(r.success){
+      var note = r.inSystem ? '✅ เพิ่ม '+code+' (👤 '+r.packer+(r.orderNumber?' · 📦 '+r.orderNumber:'')+')' : '⚠️ เพิ่ม '+code+' แต่ไม่พบใน PackingLog';
+      showBillScanResult(note, r.inSystem ? 'ok' : 'warn');
+      loadPendingShipments();
+    } else if(r.alreadyPrinted){
+      showBillScanResult('❌ '+r.message, 'err');
+    } else if(r.existing){
+      showBillScanResult('⚠️ '+r.message, 'warn');
+    } else if(r.notInSystem){
+      // ไม่อยู่ใน PackingLog → ถาม
+      if(confirm('⚠️ เลขพัสดุ '+code+' ไม่อยู่ใน PackingLog\nต้องการเพิ่มเข้า pending หรือไม่?')){
+        gRun('addPendingShipment',{trackingNumber:code, username:S.user.username, force:true}).then(function(r2){
+          if(r2 && r2.success){ showBillScanResult('⚠️ เพิ่มแล้ว (ไม่อยู่ใน PackingLog)', 'warn'); loadPendingShipments(); }
+          else showBillScanResult('❌ '+(r2&&r2.message||'ผิดพลาด'), 'err');
+        });
+      } else {
+        showBillScanResult('❎ ยกเลิก', 'warn');
+      }
+    } else {
+      showBillScanResult('❌ '+(r.message||'ผิดพลาด'), 'err');
+    }
+  });
+}
+
+function showBillScanResult(msg, type){
+  var div = el('bill-scan-result');
+  var color = type==='ok' ? 'text-emerald-400' : type==='warn' ? 'text-yellow-400' : 'text-red-400';
+  div.className = 'text-xs '+color;
+  div.textContent = msg;
+  setTimeout(function(){ if(div.textContent === msg) div.textContent=''; }, 4000);
+}
+
+function removePending(tn){
+  if(!confirm('ลบ '+tn+' ออกจากรายการ?')) return;
+  gRun('removePendingShipment',{trackingNumber:tn}).then(function(r){
+    if(r && r.success){ toast('🗑️ ลบแล้ว'); loadPendingShipments(); }
+    else toast('❌ '+(r&&r.message||'ผิดพลาด'));
+  });
+}
+
+function loadOverdueAlert(){
+  gRun('getOverdueShipments',{}).then(function(r){
+    if(!r || !r.success || !r.count){ el('bill-overdue-alert').classList.add('hidden'); return; }
+    el('bill-overdue-alert').classList.remove('hidden');
+    el('bill-overdue-count').textContent = r.count + ' รายการ — คลิก "ดูรายการ" เพื่อดูรายละเอียด';
+    window._OVERDUE_LIST = r.overdue;
+  });
+}
+
+function showOverdueDetail(){
+  var list = window._OVERDUE_LIST || [];
+  if(!list.length) return;
+  var msg = '⚠️ ออเดอร์ค้างเกิน 2 วัน:\n\n';
+  list.slice(0, 20).forEach(function(o){
+    msg += '• '+o.trackingNumber+' — '+o.packer+' ('+o.daysSince+' วัน)\n';
+  });
+  if(list.length > 20) msg += '\n...และอีก '+(list.length-20)+' รายการ';
+  alert(msg);
+}
+
+// ── Carrier dropdown (ใช้ CARRIERS เดียวกับเคลม) ──
+function loadCarriersIntoBillSelect(){
+  gRun('getCarriers',{}).then(function(r){
+    if(!r || !r.success) return;
+    var sel = el('bill-carrier');
+    var opts = '<option value="">-- เลือกขนส่ง --</option>';
+    r.carriers.forEach(function(c){ opts += '<option value="'+c+'">'+c+'</option>'; });
+    sel.innerHTML = opts;
+    sel.onchange = function(){
+      var other = el('bill-carrier-other');
+      if(this.value === 'อื่นๆ'){ other.classList.remove('hidden'); other.focus(); }
+      else other.classList.add('hidden');
+    };
+  });
+}
+
+// ── Preview ก่อนปริ้น ──
+function previewBill(){
+  var checked = Array.from(document.querySelectorAll('.bill-check:checked')).map(function(c){return c.dataset.tn;});
+  if(!checked.length){ toast('⚠️ ไม่ได้เลือกเลขพัสดุ'); return; }
+  var carrier = el('bill-carrier').value;
+  if(carrier === 'อื่นๆ') carrier = el('bill-carrier-other').value.trim();
+  if(!carrier){ toast('⚠️ ไม่ได้เลือกขนส่ง'); return; }
+  var note = el('bill-note').value.trim();
+
+  // เก็บไว้สร้างจริงตอนกด confirm
+  BILL_PREVIEW_DATA = {trackings: checked.slice().sort(), carrier: carrier, note: note};
+
+  // enrich items จาก cache
+  var items = checked.map(function(tn){
+    var p = BILL_PENDING_CACHE.find(function(x){return x.trackingNumber===tn;});
+    return p ? {trackingNumber:tn, orderNumber:p.orderNumber, packer:p.packer, packedDate:p.packedDate, cancelled:false}
+             : {trackingNumber:tn, orderNumber:'', packer:'', packedDate:'', cancelled:false};
+  }).sort(function(a,b){return a.trackingNumber.localeCompare(b.trackingNumber);});
+
+  renderBillPreview({
+    billId: '(ยังไม่บันทึก)',
+    printedBy: S.user.displayName,
+    printedDate: new Date().toLocaleString('th-TH'),
+    carrier: carrier,
+    note: note,
+    items: items,
+    cancelledTrackings: []
+  }, /*isNew=*/true);
+}
+
+function renderBillPreview(bill, isNew){
+  BILL_CURRENT = isNew ? null : bill;
+  BILL_EDIT_MODE = false;
+
+  // ปุ่มต่างๆ ตามโหมด
+  el('bill-edit-btn').classList.toggle('hidden', isNew);
+  el('bill-save-btn').classList.add('hidden');
+  el('bill-print-save-btn').classList.toggle('hidden', !isNew);
+
+  var totalCount = bill.items.length;
+  var cancelledCount = bill.items.filter(function(it){return it.cancelled;}).length;
+  var netCount = totalCount - cancelledCount;
+
+  var h = '';
+  // Header
+  h += '<div class="text-center mb-4 pb-3 border-b-2 border-slate-800">';
+  h += '<h1 class="text-2xl font-bold">📋 ใบส่งสินค้า</h1>';
+  h += '<div class="text-xs text-slate-500 mt-1">เลขที่: '+escapeHtml(bill.billId||'-')+'</div>';
+  h += '</div>';
+
+  // Info grid
+  h += '<div class="grid grid-cols-2 gap-4 text-sm mb-4">';
+  h += '<div><strong>วันที่ปริ้น:</strong> '+escapeHtml(bill.printedDate||'-')+'</div>';
+  h += '<div><strong>ขนส่ง:</strong> <span id="bill-prev-carrier">'+escapeHtml(bill.carrier||'-')+'</span></div>';
+  h += '<div><strong>ผู้สั่งปริ้น:</strong> '+escapeHtml(bill.printedBy||'-')+'</div>';
+  h += '<div><strong>หมายเหตุ:</strong> <span id="bill-prev-note">'+escapeHtml(bill.note||'-')+'</span></div>';
+  h += '</div>';
+
+  // Table
+  h += '<table class="w-full border-collapse text-sm mb-4" style="border:1px solid #cbd5e1">';
+  h += '<thead><tr style="background:#f1f5f9;border-bottom:2px solid #cbd5e1">';
+  h += '<th style="padding:8px;text-align:center;width:40px">#</th>';
+  h += '<th style="padding:8px;text-align:left">เลขพัสดุ</th>';
+  h += '<th style="padding:8px;text-align:left">เลขคำสั่งซื้อ</th>';
+  h += '<th style="padding:8px;text-align:left">ผู้แพค</th>';
+  h += '<th style="padding:8px;text-align:left">วันที่แพค</th>';
+  h += '<th id="bill-cancel-col" class="print:hidden" style="padding:8px;text-align:center;width:80px">ยกเลิก</th>';
+  h += '</tr></thead><tbody>';
+  bill.items.forEach(function(it, idx){
+    var rowClass = it.cancelled ? 'bill-cancelled-row' : '';
+    h += '<tr class="'+rowClass+'" style="border-bottom:1px solid #e2e8f0">';
+    h += '<td style="padding:6px;text-align:center">'+(idx+1)+'</td>';
+    h += '<td style="padding:6px" class="font-mono">'+escapeHtml(it.trackingNumber)+'</td>';
+    h += '<td style="padding:6px" class="font-mono">'+escapeHtml(it.orderNumber||'-')+'</td>';
+    h += '<td style="padding:6px">'+escapeHtml(it.packer||'-')+'</td>';
+    h += '<td style="padding:6px">'+escapeHtml(it.packedDate||'-')+'</td>';
+    h += '<td class="print:hidden" style="padding:6px;text-align:center">';
+    h += '<input type="checkbox" class="bill-cancel-check" data-tn="'+escapeHtml(it.trackingNumber)+'" '+(it.cancelled?'checked':'')+' disabled onchange="onCancelToggle()">';
+    h += '</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table>';
+
+  // Counts
+  h += '<div class="flex justify-end gap-6 text-sm mb-6 pt-2 border-t border-slate-200">';
+  h += '<div>รายการทั้งหมด: <strong id="bill-total-count">'+totalCount+'</strong></div>';
+  h += '<div>ยกเลิก: <strong id="bill-cancelled-count" class="text-red-600">'+cancelledCount+'</strong></div>';
+  h += '<div class="text-emerald-700">นำส่งสุทธิ: <strong id="bill-net-count" class="text-lg">'+netCount+'</strong></div>';
+  h += '</div>';
+
+  // Signatures
+  h += '<div class="grid grid-cols-2 gap-8 mt-12 pt-6">';
+  h += '<div class="text-center">';
+  h += '<div class="border-t border-slate-400 pt-2 mt-12 text-sm">';
+  h += '<div>ลงชื่อ ............................................. ผู้สั่งปริ้น</div>';
+  h += '<div class="text-xs text-slate-500 mt-1">('+escapeHtml(bill.printedBy||'')+')</div>';
+  h += '<div class="text-xs text-slate-500">วันที่ ........./........./.........</div>';
+  h += '</div></div>';
+  h += '<div class="text-center">';
+  h += '<div class="border-t border-slate-400 pt-2 mt-12 text-sm">';
+  h += '<div>ลงชื่อ ............................................. พนักงานรับพัสดุ</div>';
+  h += '<div class="text-xs text-slate-500 mt-1">('+escapeHtml(bill.carrier||'')+')</div>';
+  h += '<div class="text-xs text-slate-500">วันที่ ........./........./.........</div>';
+  h += '</div></div>';
+  h += '</div>';
+
+  el('bill-modal-body').innerHTML = h;
+  el('bill-modal').classList.remove('hidden');
+}
+
+function onCancelToggle(){
+  var checks = document.querySelectorAll('.bill-cancel-check');
+  var total = checks.length, cancelled = 0;
+  checks.forEach(function(c){
+    var row = c.closest('tr');
+    if(c.checked){ row.classList.add('bill-cancelled-row'); cancelled++; }
+    else row.classList.remove('bill-cancelled-row');
+  });
+  el('bill-cancelled-count').textContent = cancelled;
+  el('bill-net-count').textContent = total - cancelled;
+}
+
+function closeBillModal(){
+  el('bill-modal').classList.add('hidden');
+  BILL_CURRENT = null;
+  BILL_PREVIEW_DATA = null;
+  BILL_EDIT_MODE = false;
+}
+
+// ── ยืนยันสร้างใบส่ง (จาก preview) ──
+function confirmCreateBill(){
+  if(!BILL_PREVIEW_DATA) return;
+  var cancelled = Array.from(document.querySelectorAll('.bill-cancel-check:checked')).map(function(c){return c.dataset.tn;});
+  var payload = {
+    trackings: BILL_PREVIEW_DATA.trackings,
+    carrier: BILL_PREVIEW_DATA.carrier,
+    note: BILL_PREVIEW_DATA.note,
+    cancelledTrackings: cancelled,
+    username: S.user.username
+  };
+  gRun('createShippingBill', payload).then(function(r){
+    if(!r || !r.success){ toast('❌ '+(r&&r.message||'ผิดพลาด')); return; }
+    toast('✅ สร้างใบส่งแล้ว: '+r.billId);
+    closeBillModal();
+    loadPendingShipments();
+  });
+}
+
+// ── ประวัติใบส่ง ──
+function loadBillHistory(){
+  el('bill-history-list').innerHTML = '<div class="text-center text-slate-400 py-4 text-sm">กำลังโหลด...</div>';
+  gRun('getShippingBills',{}).then(function(r){
+    if(!r || !r.success){ el('bill-history-list').innerHTML = '<div class="text-center text-red-400 py-4 text-sm">❌ '+(r&&r.message||'')+'</div>'; return; }
+    BILL_HISTORY_CACHE = r.bills || [];
+    renderBillHistory();
+  });
+}
+
+function renderBillHistory(){
+  var q = (el('bill-history-search').value||'').toLowerCase().trim();
+  var list = q
+    ? BILL_HISTORY_CACHE.filter(function(b){ return [b.billId,b.carrier,b.printedBy].some(function(x){return String(x||'').toLowerCase().indexOf(q)!==-1;}); })
+    : BILL_HISTORY_CACHE;
+  if(!list.length){ el('bill-history-list').innerHTML = '<div class="text-center text-slate-500 py-6 text-sm">ยังไม่มีใบส่ง</div>'; return; }
+  var h = '';
+  list.forEach(function(b){
+    h += '<div class="grad-card rounded-xl p-3 hover:bg-slate-800/50 cursor-pointer" onclick="openBillFromHistory(\''+b.billId+'\')">';
+    h += '<div class="flex items-center gap-3 flex-wrap">';
+    h += '<div class="flex-1 min-w-0">';
+    h += '<div class="text-sm font-mono">'+escapeHtml(b.billId)+'</div>';
+    h += '<div class="text-xs text-slate-500">📅 '+b.printedDate+' · 👤 '+escapeHtml(b.printedBy)+' · 🚚 '+escapeHtml(b.carrier)+'</div>';
+    h += '</div>';
+    h += '<div class="text-right text-xs">';
+    h += '<div class="text-emerald-400 font-semibold">'+b.netCount+' รายการ</div>';
+    if(b.cancelledTrackings.length) h += '<div class="text-red-400">ยกเลิก '+b.cancelledTrackings.length+'</div>';
+    h += '</div></div></div>';
+  });
+  el('bill-history-list').innerHTML = h;
+}
+
+function openBillFromHistory(billId){
+  gRun('getShippingBill',{billId:billId}).then(function(r){
+    if(!r || !r.success){ toast('❌ '+(r&&r.message||'ผิดพลาด')); return; }
+    renderBillPreview(r.bill, /*isNew=*/false);
+  });
+}
+
+function toggleBillEdit(){
+  if(!BILL_CURRENT) return;
+  BILL_EDIT_MODE = !BILL_EDIT_MODE;
+  el('bill-save-btn').classList.toggle('hidden', !BILL_EDIT_MODE);
+  document.querySelectorAll('.bill-cancel-check').forEach(function(c){ c.disabled = !BILL_EDIT_MODE; });
+  if(BILL_EDIT_MODE) toast('✏️ โหมดแก้ไข — ติ๊กถูกเพื่อยกเลิกเลขพัสดุ แล้วกด "บันทึก"');
+}
+
+function saveBillEdit(){
+  if(!BILL_CURRENT) return;
+  var cancelled = Array.from(document.querySelectorAll('.bill-cancel-check:checked')).map(function(c){return c.dataset.tn;});
+  gRun('updateShippingBill',{billId: BILL_CURRENT.billId, cancelledTrackings: cancelled}).then(function(r){
+    if(!r || !r.success){ toast('❌ '+(r&&r.message||'ผิดพลาด')); return; }
+    toast('✅ บันทึกแล้ว');
+    closeBillModal();
+    loadBillHistory();
+  });
+}
+
+// ── Hook: showScreen → init bill screen ──
+var _origShowScreenForBill = showScreen;
+showScreen = function(name, fadeMsg){
+  _origShowScreenForBill(name, fadeMsg);
+  setTimeout(function(){
+    if(name === 'bill'){
+      switchBillTab('pending');
+      loadCarriersIntoBillSelect();
+    }
   }, 400);
 };
 
