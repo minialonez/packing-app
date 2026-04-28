@@ -862,21 +862,17 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <!-- Stats summary -->
 <div id="ship-stats" class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4"></div>
 
-<!-- Filters -->
-<div class="flex items-center gap-3 mb-4 flex-wrap">
-<input id="ship-search" type="text" placeholder="ค้นหา: เลขพัสดุ/เลขคำสั่งซื้อ/พนักงาน" class="flex-1 min-w-48 bg-slate-800 border border-slate-600 rounded-xl px-4 py-2.5 text-white text-sm" oninput="renderShipping()">
-<select id="ship-filter-status" class="bg-slate-800 border border-slate-600 rounded-xl px-3 py-2.5 text-white text-sm" onchange="renderShipping()">
-<option value="">ทุกสถานะ</option>
-<option value="กำลังส่ง">กำลังส่ง</option>
-<option value="สำเร็จแล้ว">สำเร็จแล้ว</option>
-<option value="คืนสินค้า">คืนสินค้า</option>
-<option value="รอของตีกลับ">รอของตีกลับ</option>
-<option value="ตรวจสอบสินค้าแล้ว">ตรวจสอบแล้ว</option>
-<option value="ปิดเคสแล้ว">ปิดเคสแล้ว</option>
-<option value="สูญหาย">สูญหาย</option>
-<option value="ยกเลิก">ยกเลิก</option>
-<option value="ALERT">⚠️ ค้างเกิน 10 วัน</option>
-</select>
+<!-- Filters: search + pill buttons -->
+<div class="mb-4 space-y-3">
+<!-- Search bar -->
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">🔍</span>
+<input id="ship-search" type="text" placeholder="ค้นหา: เลขพัสดุ / เลขคำสั่งซื้อ / พนักงาน" class="w-full bg-slate-800 border border-slate-600 rounded-xl pl-10 pr-10 py-3 text-white text-sm focus:outline-none focus:border-blue-500" oninput="renderShipping()">
+<button id="ship-search-clear" onclick="clearShipSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">✕</button>
+</div>
+<!-- Pill filters with counts -->
+<div id="ship-filter-pills" class="flex items-center gap-2 flex-wrap"></div>
+<input id="ship-filter-status" type="hidden" value="">
 </div>
 
 <div id="ship-results" class="space-y-2"></div>
@@ -2981,7 +2977,16 @@ function deleteTaxInvoiceConfirm(invoiceCode){
 var SHIPPING_CACHE = [];
 
 function loadShipping(){
-  el('ship-results').innerHTML = '<div class="text-center text-slate-400 py-8 text-sm">กำลังโหลด...</div>';
+  // skeleton แทน spinner
+  var skel = '';
+  for(var i=0;i<5;i++){
+    skel += '<div class="grad-card rounded-xl p-4 animate-pulse">';
+    skel += '<div class="flex items-center gap-3"><div class="h-5 w-20 bg-slate-700 rounded"></div><div class="h-4 w-24 bg-slate-700/50 rounded"></div></div>';
+    skel += '<div class="mt-2 h-4 w-48 bg-slate-700/50 rounded"></div>';
+    skel += '<div class="mt-1 h-3 w-32 bg-slate-700/30 rounded"></div>';
+    skel += '</div>';
+  }
+  el('ship-results').innerHTML = skel;
   // แสดงปุ่ม admin only
   var resetBtn = el('ship-reset-btn');
   var matchBtn = el('ship-match-all-btn');
@@ -3049,16 +3054,13 @@ function resetShippingStatuses(){
 function renderShipping(){
   var q = (el('ship-search').value || '').toLowerCase().trim();
   var f = el('ship-filter-status').value || '';
-  var list = SHIPPING_CACHE.filter(function(s){
-    if(f === 'ALERT'){ if(!s.alertFlag) return false; }
-    else if(f && s.status !== f) return false;
-    if(!q) return true;
-    return [s.orderNumber, s.trackingNumber, s.packer, s.returnTrackingNo]
-      .some(function(x){ return String(x||'').toLowerCase().indexOf(q) !== -1; });
-  });
 
-  // Stats summary
-  var stats = {transit:0, completed:0, ret:0, waitRet:0, checked:0, closed:0, lost:0, cancelled:0, alert:0};
+  // toggle clear button
+  var clearBtn = el('ship-search-clear');
+  if(clearBtn) clearBtn.classList.toggle('hidden', !q);
+
+  // Stats first (จากทั้ง cache ไม่ใช่ filtered)
+  var stats = {all:SHIPPING_CACHE.length, transit:0, completed:0, ret:0, waitRet:0, checked:0, closed:0, lost:0, cancelled:0, alert:0};
   SHIPPING_CACHE.forEach(function(s){
     if(s.status === 'กำลังส่ง') stats.transit++;
     else if(s.status === 'สำเร็จแล้ว') stats.completed++;
@@ -3070,14 +3072,62 @@ function renderShipping(){
     else if(s.status === 'ยกเลิก') stats.cancelled++;
     if(s.alertFlag) stats.alert++;
   });
-  var statsHtml = '';
-  statsHtml += '<div class="grad-card rounded-xl p-3 text-center"><div class="text-xs text-slate-400">กำลังส่ง</div><div class="text-2xl font-bold text-blue-400">'+stats.transit+'</div></div>';
-  statsHtml += '<div class="grad-card rounded-xl p-3 text-center"><div class="text-xs text-slate-400">สำเร็จแล้ว</div><div class="text-2xl font-bold text-emerald-400">'+stats.completed+'</div></div>';
-  statsHtml += '<div class="grad-card rounded-xl p-3 text-center"><div class="text-xs text-slate-400">คืนสินค้า</div><div class="text-2xl font-bold text-orange-400">'+stats.ret+'</div></div>';
-  statsHtml += '<div class="grad-card rounded-xl p-3 text-center"><div class="text-xs text-slate-400">รอของ/ตรวจ/ปิด</div><div class="text-2xl font-bold text-yellow-400">'+(stats.waitRet+stats.checked)+'<span class="text-sm text-slate-500"> /'+stats.closed+'</span></div></div>';
-  statsHtml += '<div class="grad-card rounded-xl p-3 text-center"><div class="text-xs text-slate-400">สูญหาย/ยกเลิก</div><div class="text-2xl font-bold text-slate-400">'+(stats.lost+stats.cancelled)+'</div></div>';
-  statsHtml += '<div class="grad-card rounded-xl p-3 text-center'+(stats.alert>0?' border-red-500/50':'')+'"><div class="text-xs text-slate-400">⚠️ ค้าง > 10 วัน</div><div class="text-2xl font-bold '+(stats.alert>0?'text-red-400':'text-slate-500')+'">'+stats.alert+'</div></div>';
-  el('ship-stats').innerHTML = statsHtml;
+
+  // Render pill filters (ถ้ายังไม่มี)
+  var pillsEl = el('ship-filter-pills');
+  if(pillsEl){
+    var pills = [
+      {v:'',     label:'ทั้งหมด',     count:stats.all,                          color:'blue'},
+      {v:'ALERT',label:'⚠️ ค้าง > 10 วัน', count:stats.alert,                       color:'red',     hideIf0:true},
+      {v:'กำลังส่ง',  label:'กำลังส่ง', count:stats.transit,                color:'blue'},
+      {v:'สำเร็จแล้ว', label:'สำเร็จ',  count:stats.completed,              color:'emerald'},
+      {v:'คืนสินค้า',  label:'คืนสินค้า', count:stats.ret,                   color:'orange',  hideIf0:true},
+      {v:'รอของตีกลับ', label:'รอของตีกลับ', count:stats.waitRet,            color:'yellow',  hideIf0:true},
+      {v:'ตรวจสอบสินค้าแล้ว', label:'ตรวจแล้ว', count:stats.checked,         color:'cyan',    hideIf0:true},
+      {v:'ปิดเคสแล้ว', label:'ปิดเคส',   count:stats.closed,                color:'slate',   hideIf0:true},
+      {v:'สูญหาย',  label:'สูญหาย',  count:stats.lost,                     color:'red',     hideIf0:true},
+      {v:'ยกเลิก',  label:'ยกเลิก',  count:stats.cancelled,                color:'slate',   hideIf0:true}
+    ];
+    var pillHtml = '';
+    pills.forEach(function(p){
+      if(p.hideIf0 && p.count === 0) return;
+      var active = (f === p.v);
+      var bg, txt, ring;
+      if(active){
+        var colorMap = {
+          blue:    {bg:'bg-blue-600',    txt:'text-white'},
+          emerald: {bg:'bg-emerald-600', txt:'text-white'},
+          orange:  {bg:'bg-orange-600',  txt:'text-white'},
+          yellow:  {bg:'bg-yellow-600',  txt:'text-white'},
+          cyan:    {bg:'bg-cyan-600',    txt:'text-white'},
+          red:     {bg:'bg-red-600',     txt:'text-white'},
+          slate:   {bg:'bg-slate-500',   txt:'text-white'}
+        };
+        var c = colorMap[p.color] || colorMap.blue;
+        bg = c.bg; txt = c.txt;
+      } else {
+        bg = 'bg-slate-800 hover:bg-slate-700'; txt = 'text-slate-300';
+      }
+      pillHtml += '<button onclick="setShipFilter(\''+p.v+'\')" class="'+bg+' '+txt+' px-3 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-1.5">';
+      pillHtml += '<span>'+p.label+'</span>';
+      pillHtml += '<span class="'+(active?'bg-white/20':'bg-slate-700/80')+' px-1.5 py-0.5 rounded-full text-[10px] font-bold">'+p.count+'</span>';
+      pillHtml += '</button>';
+    });
+    pillsEl.innerHTML = pillHtml;
+  }
+
+  // Hide old stats container if exists
+  var oldStats = el('ship-stats');
+  if(oldStats) oldStats.classList.add('hidden');
+
+  // Filter list
+  var list = SHIPPING_CACHE.filter(function(s){
+    if(f === 'ALERT'){ if(!s.alertFlag) return false; }
+    else if(f && s.status !== f) return false;
+    if(!q) return true;
+    return [s.orderNumber, s.trackingNumber, s.packer, s.returnTrackingNo]
+      .some(function(x){ return String(x||'').toLowerCase().indexOf(q) !== -1; });
+  });
 
   if(!list.length){
     el('ship-results').innerHTML = '<div class="text-center text-slate-400 py-8 text-sm">ไม่พบรายการ</div>';
@@ -3149,6 +3199,17 @@ function renderShipping(){
     h += '</div></div>';
   });
   el('ship-results').innerHTML = h;
+}
+
+function setShipFilter(value){
+  el('ship-filter-status').value = value;
+  renderShipping();
+}
+
+function clearShipSearch(){
+  el('ship-search').value = '';
+  renderShipping();
+  el('ship-search').focus();
 }
 
 function getShippingStatusColor(status){
