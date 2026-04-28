@@ -1018,6 +1018,15 @@ function onScanInput() {
   var inp = el('bc-input');
   var code = inp.value.trim();
   if (code.length >= 3) {
+    // ตรวจตัวอักษรไทย (Unicode U+0E00–U+0E7F)
+    if (/[\u0E00-\u0E7F]/.test(code)) {
+      toast('⚠️ บาร์โค้ดไม่รองรับภาษาไทย — กรุณาเปลี่ยนภาษาคีย์บอร์ดเป็น EN แล้วยิงใหม่', 5000);
+      inp.value = '';
+      inp.focus();
+      // ถ้ามี popup ทั่วไป (overlay) ให้แสดงแทน toast — ใช้ alert ไปก่อน
+      try { alert('⚠️ บาร์โค้ดไม่รองรับภาษาไทย\n\nกรุณาเปลี่ยนภาษาคีย์บอร์ดเป็น EN แล้วยิงใหม่'); } catch(e){}
+      return;
+    }
     handleBarcode(code);
   }
   inp.value = '';
@@ -1044,6 +1053,13 @@ function setupBarcode() {
 }
 
 function handleBarcode(code) {
+  // ตรวจตัวอักษรไทย — ป้องกันยิงผิดเพราะคีย์บอร์ด layout TH
+  if (/[\u0E00-\u0E7F]/.test(code)) {
+    try { alert('⚠️ บาร์โค้ดไม่รองรับภาษาไทย\n\nกรุณาเปลี่ยนภาษาคีย์บอร์ดเป็น EN แล้วยิงใหม่'); } catch(e){}
+    toast('⚠️ พบตัวอักษรไทยในบาร์โค้ด — กรุณาเปลี่ยนภาษาเป็น EN', 5000);
+    focusScan();
+    return;
+  }
   if(!S.recording && !S.paused){
     // ═══ ยิงครั้งแรก = เลขคำสั่งซื้อ ═══
     var orderCode = (S.mode==='return') ? 'R-'+code : code;
