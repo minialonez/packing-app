@@ -737,13 +737,25 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <!-- Pending list -->
 <div class="grad-card rounded-2xl p-5 mb-4">
 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-<h3 class="font-semibold text-sm">📋 รายการรอปริ้น (<span id="bill-pending-count">0</span>)</h3>
+<h3 class="font-semibold text-sm">📋 รายการ (<span id="bill-pending-count">0</span>)</h3>
 <div class="flex items-center gap-2 flex-wrap">
 <input id="bill-pending-search" type="text" placeholder="ค้นหา..." class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-white text-xs" oninput="renderPending()">
 <button onclick="loadPendingShipments()" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs">🔄</button>
 <button onclick="selectAllPending(true)" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs">เลือกทั้งหมด</button>
 <button onclick="selectAllPending(false)" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs">ล้าง</button>
 </div>
+</div>
+<!-- Sub-filter: ยังไม่ปริ้น / ปริ้นแล้ว -->
+<div class="flex items-center gap-2 mb-3 flex-wrap">
+<button id="bill-filter-unprinted" onclick="setBillFilter('unprinted')" class="bg-blue-600 text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
+<span>📥 ยังไม่ปริ้น</span><span class="bg-white/20 px-1.5 py-0.5 rounded-full text-[10px] font-bold" id="bill-count-unprinted">0</span>
+</button>
+<button id="bill-filter-printed" onclick="setBillFilter('printed')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
+<span>✅ ปริ้นแล้ว</span><span class="bg-slate-700/80 px-1.5 py-0.5 rounded-full text-[10px] font-bold" id="bill-count-printed">0</span>
+</button>
+<button id="bill-filter-all" onclick="setBillFilter('all')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5">
+<span>ทั้งหมด</span><span class="bg-slate-700/80 px-1.5 py-0.5 rounded-full text-[10px] font-bold" id="bill-count-all">0</span>
+</button>
 </div>
 <div id="bill-pending-list" class="space-y-1"></div>
 </div>
@@ -3409,6 +3421,7 @@ var BILL_HISTORY_CACHE = [];
 var BILL_CURRENT = null;       // ใบส่งที่กำลังดู (สำหรับ history)
 var BILL_PREVIEW_DATA = null;  // ใบที่กำลัง preview จะสร้างใหม่
 var BILL_EDIT_MODE = false;
+var BILL_FILTER = 'unprinted'; // unprinted / printed / all
 
 function switchBillTab(tab){
   var paneP = el('bill-pane-pending'), paneH = el('bill-pane-history');
@@ -3429,6 +3442,38 @@ function switchBillTab(tab){
   }
 }
 
+function setBillFilter(filter){
+  BILL_FILTER = filter;
+  // toggle pill active states
+  var pills = ['unprinted','printed','all'];
+  pills.forEach(function(p){
+    var btn = el('bill-filter-'+p);
+    if(!btn) return;
+    if(p === filter){
+      btn.className = 'bg-blue-600 text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5';
+      var span = btn.querySelector('span:last-child');
+      if(span) span.className = 'bg-white/20 px-1.5 py-0.5 rounded-full text-[10px] font-bold';
+    } else {
+      btn.className = 'bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5';
+      var span2 = btn.querySelector('span:last-child');
+      if(span2) span2.className = 'bg-slate-700/80 px-1.5 py-0.5 rounded-full text-[10px] font-bold';
+    }
+  });
+  // restore count classes
+  ['unprinted','printed','all'].forEach(function(p){
+    var span = document.querySelector('#bill-filter-'+p+' span:last-child');
+    if(!span) return;
+    var btn = el('bill-filter-'+p);
+    if(span && btn && btn.classList.contains('bg-blue-600')){
+      span.className = 'bg-white/20 px-1.5 py-0.5 rounded-full text-[10px] font-bold';
+    }
+    // ใส่ id กลับ
+    var ids = {unprinted:'bill-count-unprinted', printed:'bill-count-printed', all:'bill-count-all'};
+    span.id = ids[p];
+  });
+  renderPending();
+}
+
 function loadPendingShipments(){
   el('bill-pending-list').innerHTML = '<div class="text-center text-slate-400 py-4 text-sm">กำลังโหลด...</div>';
   gRun('getPendingShipments',{}).then(function(r){
@@ -3440,31 +3485,59 @@ function loadPendingShipments(){
 
 function renderPending(){
   var q = (el('bill-pending-search').value||'').toLowerCase().trim();
+
+  // Stats counts
+  var cAll = BILL_PENDING_CACHE.length;
+  var cPrinted = 0, cUnprinted = 0;
+  BILL_PENDING_CACHE.forEach(function(p){ if(p.printed) cPrinted++; else cUnprinted++; });
+  if(el('bill-count-all')) el('bill-count-all').textContent = cAll;
+  if(el('bill-count-printed')) el('bill-count-printed').textContent = cPrinted;
+  if(el('bill-count-unprinted')) el('bill-count-unprinted').textContent = cUnprinted;
+
+  // Filter by sub-tab
+  var subList = BILL_PENDING_CACHE.filter(function(p){
+    if(BILL_FILTER === 'printed') return p.printed;
+    if(BILL_FILTER === 'unprinted') return !p.printed;
+    return true;   // all
+  });
+
+  // Filter by search
   var list = q
-    ? BILL_PENDING_CACHE.filter(function(p){ return [p.trackingNumber,p.orderNumber,p.packer].some(function(x){return String(x||'').toLowerCase().indexOf(q)!==-1;}); })
-    : BILL_PENDING_CACHE;
-  el('bill-pending-count').textContent = BILL_PENDING_CACHE.length;
+    ? subList.filter(function(p){ return [p.trackingNumber,p.orderNumber,p.packer,p.billId].some(function(x){return String(x||'').toLowerCase().indexOf(q)!==-1;}); })
+    : subList;
+
+  el('bill-pending-count').textContent = list.length;
   if(!list.length){
-    el('bill-pending-list').innerHTML = '<div class="text-center text-slate-500 py-6 text-sm">'+(q?'ไม่พบรายการที่ค้นหา':'ยังไม่มีรายการ — ยิงเลขพัสดุเพื่อเริ่มสะสม')+'</div>';
+    var emptyMsg = q
+      ? 'ไม่พบรายการที่ค้นหา'
+      : (BILL_FILTER === 'printed' ? 'ยังไม่มีรายการที่ปริ้นแล้ว' : 'ยังไม่มีรายการ — ยิงเลขพัสดุเพื่อเริ่มสะสม');
+    el('bill-pending-list').innerHTML = '<div class="text-center text-slate-500 py-6 text-sm">'+emptyMsg+'</div>';
     updateSelectedCount();
     return;
   }
   var h = '';
   list.forEach(function(p){
     var warn = !p.inSystem ? '<span class="text-xs px-2 py-0.5 rounded bg-yellow-900/60 text-yellow-300 ml-2">⚠️ ไม่อยู่ใน PackingLog</span>' : '';
-    h += '<div class="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-800/50">';
-    h += '<input type="checkbox" class="bill-check w-4 h-4" data-tn="'+escapeHtml(p.trackingNumber)+'" onchange="updateSelectedCount()">';
+    var printedBadge = p.printed ? '<span class="text-xs px-2 py-0.5 rounded bg-emerald-900/60 text-emerald-300 ml-2">✅ ปริ้นแล้ว</span>' : '';
+    var rowClass = p.printed ? 'opacity-70' : '';
+    var checkboxAttr = p.printed ? 'disabled' : '';   // ปริ้นแล้วไม่ให้ติ๊กซ้ำ
+
+    h += '<div class="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-800/50 '+rowClass+'">';
+    h += '<input type="checkbox" class="bill-check w-4 h-4" data-tn="'+escapeHtml(p.trackingNumber)+'" '+checkboxAttr+' onchange="updateSelectedCount()">';
     h += '<div class="flex-1 min-w-0">';
     h += '<div class="flex items-center gap-2 flex-wrap">';
     h += '<span class="font-mono text-sm">'+escapeHtml(p.trackingNumber)+'</span>';
-    h += warn;
+    h += warn + printedBadge;
     h += '</div>';
     h += '<div class="text-xs text-slate-500">';
     if(p.orderNumber) h += '📦 '+escapeHtml(p.orderNumber)+' · ';
     if(p.packer) h += '👤 '+escapeHtml(p.packer)+' · ';
     if(p.packedDate) h += '📅 '+p.packedDate;
+    if(p.printed && p.billId) h += ' · <button class="text-blue-400 hover:underline" onclick="openBillFromHistory(\''+p.billId+'\')">📄 ดูใบส่ง</button>';
     h += '</div></div>';
-    h += '<button onclick="removePending(\''+p.trackingNumber+'\')" class="text-red-400 hover:text-red-300 text-xs">✕</button>';
+    if(!p.printed){
+      h += '<button onclick="removePending(\''+p.trackingNumber+'\')" class="text-red-400 hover:text-red-300 text-xs">✕</button>';
+    }
     h += '</div>';
   });
   el('bill-pending-list').innerHTML = h;
@@ -3472,7 +3545,8 @@ function renderPending(){
 }
 
 function selectAllPending(check){
-  document.querySelectorAll('.bill-check').forEach(function(c){ c.checked = check; });
+  // เลือกเฉพาะที่ไม่ disabled (ที่ยังไม่ปริ้น)
+  document.querySelectorAll('.bill-check:not([disabled])').forEach(function(c){ c.checked = check; });
   updateSelectedCount();
 }
 function updateSelectedCount(){
