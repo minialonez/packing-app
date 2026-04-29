@@ -3842,7 +3842,7 @@ function confirmCreateBill(){
     btn.classList.remove('bg-emerald-600','hover:bg-emerald-500');
     btn.classList.add('bg-slate-600','cursor-wait');
   }
-  gRun('createShippingBill', payload).then(function(r){
+  gRunPost('createShippingBill', payload).then(function(r){
     if(!r || !r.success){
       if(btn){
         btn.disabled = false;
@@ -3920,7 +3920,7 @@ function toggleBillEdit(){
 function saveBillEdit(){
   if(!BILL_CURRENT) return;
   var cancelled = Array.from(document.querySelectorAll('.bill-cancel-check:checked')).map(function(c){return c.dataset.tn;});
-  gRun('updateShippingBill',{billId: BILL_CURRENT.billId, cancelledTrackings: cancelled}).then(function(r){
+  gRunPost('updateShippingBill',{billId: BILL_CURRENT.billId, cancelledTrackings: cancelled}).then(function(r){
     if(!r || !r.success){ toast('❌ '+(r&&r.message||'ผิดพลาด')); return; }
     toast('✅ บันทึกแล้ว');
     closeBillModal();
