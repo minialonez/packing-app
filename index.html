@@ -3731,7 +3731,13 @@ function renderBillPreview(bill, isNew){
   // ปุ่มต่างๆ ตามโหมด
   el('bill-edit-btn').classList.toggle('hidden', isNew);
   el('bill-save-btn').classList.add('hidden');
-  el('bill-print-save-btn').classList.toggle('hidden', !isNew);
+  // Reset confirm button (กันค้างจากครั้งก่อนถ้าโดน disable แล้ว error)
+  var saveBtn = el('bill-print-save-btn');
+  saveBtn.classList.toggle('hidden', !isNew);
+  saveBtn.disabled = false;
+  saveBtn.textContent = '✅ ยืนยันสร้างใบส่ง';
+  saveBtn.classList.remove('bg-slate-600','cursor-wait');
+  saveBtn.classList.add('bg-emerald-600','hover:bg-emerald-500');
 
   var totalCount = bill.items.length;
   var cancelledCount = bill.items.filter(function(it){return it.cancelled;}).length;
@@ -3858,6 +3864,11 @@ function confirmCreateBill(){
     BILL_FILTER = 'printed';   // สลับ filter ก่อน load
     loadPendingShipments();
     setTimeout(function(){ setBillFilter('printed'); }, 100);   // sync UI pill
+    // Reset carrier + note + carrier-other ให้เป็นค่า default
+    var carSel = el('bill-carrier'); if(carSel) carSel.value = '';
+    var carOther = el('bill-carrier-other');
+    if(carOther){ carOther.value = ''; carOther.classList.add('hidden'); }
+    var noteInp = el('bill-note'); if(noteInp) noteInp.value = '';
     alert('✅ สร้างใบส่งสำเร็จ\n\nเลขที่: '+r.billId+'\n\nรายการที่ปริ้นแล้วถูกย้ายไปแถบ "✅ ปริ้นแล้ว"');
   }).catch(function(err){
     if(btn){
