@@ -757,6 +757,13 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <span>ทั้งหมด</span><span class="bg-slate-700/80 px-1.5 py-0.5 rounded-full text-[10px] font-bold" id="bill-count-all">0</span>
 </button>
 </div>
+
+<!-- Carrier filter (โผล่เมื่ออยู่ใน "ปริ้นแล้ว" หรือ "ทั้งหมด") -->
+<div id="bill-carrier-filter-row" class="hidden flex items-center gap-2 mb-3 flex-wrap pb-2 border-b border-slate-800">
+<span class="text-xs text-slate-400">🚚 กรองตามขนส่ง:</span>
+<div id="bill-carrier-filter-pills" class="flex items-center gap-1.5 flex-wrap"></div>
+</div>
+
 <div id="bill-pending-list" class="space-y-1"></div>
 </div>
 
@@ -3422,6 +3429,7 @@ var BILL_CURRENT = null;       // ใบส่งที่กำลังดู 
 var BILL_PREVIEW_DATA = null;  // ใบที่กำลัง preview จะสร้างใหม่
 var BILL_EDIT_MODE = false;
 var BILL_FILTER = 'unprinted'; // unprinted / printed / all
+var BILL_CARRIER_FILTER = '';  // carrier name หรือ '' = ทั้งหมด
 
 function switchBillTab(tab){
   var paneP = el('bill-pane-pending'), paneH = el('bill-pane-history');
@@ -3444,6 +3452,7 @@ function switchBillTab(tab){
 
 function setBillFilter(filter){
   BILL_FILTER = filter;
+  BILL_CARRIER_FILTER = '';   // reset เมื่อสลับ status filter
   // toggle pill active states
   var pills = ['unprinted','printed','all'];
   pills.forEach(function(p){
@@ -3451,26 +3460,29 @@ function setBillFilter(filter){
     if(!btn) return;
     if(p === filter){
       btn.className = 'bg-blue-600 text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5';
-      var span = btn.querySelector('span:last-child');
-      if(span) span.className = 'bg-white/20 px-1.5 py-0.5 rounded-full text-[10px] font-bold';
     } else {
       btn.className = 'bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5';
-      var span2 = btn.querySelector('span:last-child');
-      if(span2) span2.className = 'bg-slate-700/80 px-1.5 py-0.5 rounded-full text-[10px] font-bold';
     }
   });
-  // restore count classes
+  // restore count span ids
   ['unprinted','printed','all'].forEach(function(p){
-    var span = document.querySelector('#bill-filter-'+p+' span:last-child');
-    if(!span) return;
     var btn = el('bill-filter-'+p);
-    if(span && btn && btn.classList.contains('bg-blue-600')){
-      span.className = 'bg-white/20 px-1.5 py-0.5 rounded-full text-[10px] font-bold';
-    }
-    // ใส่ id กลับ
+    if(!btn) return;
+    var span = btn.querySelector('span:last-child');
+    if(!span) return;
     var ids = {unprinted:'bill-count-unprinted', printed:'bill-count-printed', all:'bill-count-all'};
     span.id = ids[p];
+    if(btn.classList.contains('bg-blue-600')){
+      span.className = 'bg-white/20 px-1.5 py-0.5 rounded-full text-[10px] font-bold';
+    } else {
+      span.className = 'bg-slate-700/80 px-1.5 py-0.5 rounded-full text-[10px] font-bold';
+    }
   });
+  renderPending();
+}
+
+function setBillCarrierFilter(carrier){
+  BILL_CARRIER_FILTER = carrier;
   renderPending();
 }
 
@@ -3494,17 +3506,58 @@ function renderPending(){
   if(el('bill-count-printed')) el('bill-count-printed').textContent = cPrinted;
   if(el('bill-count-unprinted')) el('bill-count-unprinted').textContent = cUnprinted;
 
-  // Filter by sub-tab
+  // Filter by sub-tab (status)
   var subList = BILL_PENDING_CACHE.filter(function(p){
     if(BILL_FILTER === 'printed') return p.printed;
     if(BILL_FILTER === 'unprinted') return !p.printed;
-    return true;   // all
+    return true;
   });
+
+  // ── Carrier filter pills ── (โผล่เมื่อ filter = printed/all)
+  var carrierFilterRow = el('bill-carrier-filter-row');
+  var carrierPills = el('bill-carrier-filter-pills');
+  if(carrierFilterRow && carrierPills){
+    if(BILL_FILTER === 'printed' || BILL_FILTER === 'all'){
+      // นับ carrier (เฉพาะ row ที่ printed)
+      var carrierCounts = {};
+      subList.forEach(function(p){
+        if(p.printed && p.carrier){
+          carrierCounts[p.carrier] = (carrierCounts[p.carrier]||0) + 1;
+        }
+      });
+      var carrierKeys = Object.keys(carrierCounts).sort();
+      if(carrierKeys.length){
+        carrierFilterRow.classList.remove('hidden');
+        carrierFilterRow.classList.add('flex');
+        var ph = '<button onclick="setBillCarrierFilter(\'\')" class="'+
+          (BILL_CARRIER_FILTER===''?'bg-blue-600 text-white':'bg-slate-800 hover:bg-slate-700 text-slate-300')+
+          ' px-2.5 py-1 rounded-full text-[11px] font-medium">ทั้งหมด</button>';
+        carrierKeys.forEach(function(c){
+          var active = BILL_CARRIER_FILTER === c;
+          ph += '<button onclick="setBillCarrierFilter(\''+c.replace(/'/g,"\\'")+'\')" class="'+
+            (active?'bg-blue-600 text-white':'bg-slate-800 hover:bg-slate-700 text-slate-300')+
+            ' px-2.5 py-1 rounded-full text-[11px] font-medium">'+escapeHtml(c)+' <span class="opacity-60">('+carrierCounts[c]+')</span></button>';
+        });
+        carrierPills.innerHTML = ph;
+      } else {
+        carrierFilterRow.classList.add('hidden');
+        carrierFilterRow.classList.remove('flex');
+      }
+    } else {
+      carrierFilterRow.classList.add('hidden');
+      carrierFilterRow.classList.remove('flex');
+    }
+  }
+
+  // Apply carrier filter
+  var afterCarrier = BILL_CARRIER_FILTER
+    ? subList.filter(function(p){ return p.carrier === BILL_CARRIER_FILTER; })
+    : subList;
 
   // Filter by search
   var list = q
-    ? subList.filter(function(p){ return [p.trackingNumber,p.orderNumber,p.packer,p.billId].some(function(x){return String(x||'').toLowerCase().indexOf(q)!==-1;}); })
-    : subList;
+    ? afterCarrier.filter(function(p){ return [p.trackingNumber,p.orderNumber,p.packer,p.billId,p.carrier].some(function(x){return String(x||'').toLowerCase().indexOf(q)!==-1;}); })
+    : afterCarrier;
 
   el('bill-pending-count').textContent = list.length;
   if(!list.length){
@@ -3518,9 +3571,9 @@ function renderPending(){
   var h = '';
   list.forEach(function(p){
     var warn = !p.inSystem ? '<span class="text-xs px-2 py-0.5 rounded bg-yellow-900/60 text-yellow-300 ml-2">⚠️ ไม่อยู่ใน PackingLog</span>' : '';
-    var printedBadge = p.printed ? '<span class="text-xs px-2 py-0.5 rounded bg-emerald-900/60 text-emerald-300 ml-2">✅ ปริ้นแล้ว</span>' : '';
+    var printedBadge = p.printed ? '<span class="text-xs px-2 py-0.5 rounded bg-emerald-900/60 text-emerald-300 ml-2">✅ '+(p.carrier?escapeHtml(p.carrier):'ปริ้นแล้ว')+'</span>' : '';
     var rowClass = p.printed ? 'opacity-70' : '';
-    var checkboxAttr = p.printed ? 'disabled' : '';   // ปริ้นแล้วไม่ให้ติ๊กซ้ำ
+    var checkboxAttr = p.printed ? 'disabled' : '';
 
     h += '<div class="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-800/50 '+rowClass+'">';
     h += '<input type="checkbox" class="bill-check w-4 h-4" data-tn="'+escapeHtml(p.trackingNumber)+'" '+checkboxAttr+' onchange="updateSelectedCount()">';
@@ -3773,6 +3826,7 @@ function closeBillModal(){
 // ── ยืนยันสร้างใบส่ง (จาก preview) ──
 function confirmCreateBill(){
   if(!BILL_PREVIEW_DATA) return;
+  var btn = el('bill-print-save-btn');
   var cancelled = Array.from(document.querySelectorAll('.bill-cancel-check:checked')).map(function(c){return c.dataset.tn;});
   var payload = {
     trackings: BILL_PREVIEW_DATA.trackings,
@@ -3781,11 +3835,38 @@ function confirmCreateBill(){
     cancelledTrackings: cancelled,
     username: S.user.username
   };
+  // disable button + spinner — กันกดซ้ำ + แสดงว่ากำลังทำงาน
+  if(btn){
+    btn.disabled = true;
+    btn.textContent = '⏳ กำลังบันทึก...';
+    btn.classList.remove('bg-emerald-600','hover:bg-emerald-500');
+    btn.classList.add('bg-slate-600','cursor-wait');
+  }
   gRun('createShippingBill', payload).then(function(r){
-    if(!r || !r.success){ toast('❌ '+(r&&r.message||'ผิดพลาด')); return; }
-    toast('✅ สร้างใบส่งแล้ว: '+r.billId);
+    if(!r || !r.success){
+      if(btn){
+        btn.disabled = false;
+        btn.textContent = '✅ ยืนยันสร้างใบส่ง';
+        btn.classList.add('bg-emerald-600','hover:bg-emerald-500');
+        btn.classList.remove('bg-slate-600','cursor-wait');
+      }
+      alert('❌ บันทึกไม่สำเร็จ: '+(r&&r.message||'ผิดพลาด'));
+      return;
+    }
+    // success — popup ชัดเจน + ย้าย filter ไป "ปริ้นแล้ว"
     closeBillModal();
+    BILL_FILTER = 'printed';   // สลับ filter ก่อน load
     loadPendingShipments();
+    setTimeout(function(){ setBillFilter('printed'); }, 100);   // sync UI pill
+    alert('✅ สร้างใบส่งสำเร็จ\n\nเลขที่: '+r.billId+'\n\nรายการที่ปริ้นแล้วถูกย้ายไปแถบ "✅ ปริ้นแล้ว"');
+  }).catch(function(err){
+    if(btn){
+      btn.disabled = false;
+      btn.textContent = '✅ ยืนยันสร้างใบส่ง';
+      btn.classList.add('bg-emerald-600','hover:bg-emerald-500');
+      btn.classList.remove('bg-slate-600','cursor-wait');
+    }
+    alert('❌ เครือข่ายผิดพลาด: '+(err.message||err));
   });
 }
 
