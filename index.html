@@ -71,7 +71,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <button onclick="showScreen('shipping')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🚚 ติดตามส่ง</button>
 <button onclick="showScreen('bill')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📋 ใบส่งสินค้า</button>
 <button onclick="showScreen('claims')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🛠️ เคลม</button>
-<button onclick="showScreen('tax')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📄 ใบกำกับ</button>
+<!-- ปิดใช้งานใบกำกับภาษี --><button onclick="showScreen('tax')" class="hidden text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📄 ใบกำกับ</button>
 <button onclick="toggleNotifPanel()" class="relative text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">
 🔔<span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">0</span>
 </button>
@@ -387,8 +387,8 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 
 <!-- Tab buttons -->
 <div class="max-w-2xl mx-auto px-4 pt-4">
-<div class="grid grid-cols-3 gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1">
-<button id="tab-btn-tax" onclick="switchTab('tax')" class="py-2.5 rounded-lg text-xs font-semibold transition">📄 ใบกำกับภาษี</button>
+<div class="grid grid-cols-2 gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1">
+<button id="tab-btn-tax" onclick="switchTab('tax')" class="hidden py-2.5 rounded-lg text-xs font-semibold transition">📄 ใบกำกับภาษี</button>
 <button id="tab-btn-claim" onclick="switchTab('claim')" class="py-2.5 rounded-lg text-xs font-semibold transition">🛠️ แจ้งเคลม</button>
 <button id="tab-btn-track" onclick="switchTab('track')" class="py-2.5 rounded-lg text-xs font-semibold transition">📦 เช็คสถานะ</button>
 </div>
@@ -621,7 +621,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="flex items-center gap-1">
 <button onclick="showScreen('dashboard')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📊 รายงาน</button>
 
-<button onclick="showScreen('tax')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📄 ใบกำกับ</button>
+<!-- ปิดใช้งานใบกำกับภาษี --><button onclick="showScreen('tax')" class="hidden text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📄 ใบกำกับ</button>
 <button onclick="toggleNotifPanel()" class="relative text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">
 🔔<span id="notif-badge-c" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">0</span>
 </button>
@@ -1077,13 +1077,13 @@ function goPage(page) {
 }
 function initPage() {
   var page = getQueryParam('page');
-  if (page === 'claim' || page === 'track' || page === 'customer' || page === 'tax') {
+  // ปิดใช้ระบบใบกำกับภาษี: ถ้า ?page=tax → redirect ไป claim
+  if (page === 'tax') page = 'claim';
+  if (page === 'claim' || page === 'track' || page === 'customer') {
     showScreen('customer');
     loadCarriersIntoSelect('cf-carrier');
-    // เริ่มที่ tab ที่ match กับ URL
     var startTab = 'claim';
     if(page === 'track') startTab = 'track';
-    else if(page === 'tax') startTab = 'tax';
     switchTab(startTab, false);
     return;
   }
