@@ -71,7 +71,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <button onclick="showScreen('shipping')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🚚 ติดตามส่ง</button>
 <button onclick="showScreen('bill')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📋 ใบส่งสินค้า</button>
 <button onclick="showScreen('claims')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">🛠️ เคลม</button>
-<!-- ปิดใช้งานใบกำกับภาษี --><button onclick="showScreen('tax')" class="hidden text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📄 ใบกำกับ</button>
+<button onclick="showScreen('tax')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📄 ใบกำกับ</button>
 <button onclick="toggleNotifPanel()" class="relative text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">
 🔔<span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">0</span>
 </button>
@@ -387,8 +387,8 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 
 <!-- Tab buttons -->
 <div class="max-w-2xl mx-auto px-4 pt-4">
-<div class="grid grid-cols-2 gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1">
-<button id="tab-btn-tax" onclick="switchTab('tax')" class="hidden py-2.5 rounded-lg text-xs font-semibold transition">📄 ใบกำกับภาษี</button>
+<div class="grid grid-cols-3 gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1">
+<button id="tab-btn-tax" onclick="switchTab('tax')" class="py-2.5 rounded-lg text-xs font-semibold transition">📄 ใบกำกับภาษี</button>
 <button id="tab-btn-claim" onclick="switchTab('claim')" class="py-2.5 rounded-lg text-xs font-semibold transition">🛠️ แจ้งเคลม</button>
 <button id="tab-btn-track" onclick="switchTab('track')" class="py-2.5 rounded-lg text-xs font-semibold transition">📦 เช็คสถานะ</button>
 </div>
@@ -621,7 +621,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="flex items-center gap-1">
 <button onclick="showScreen('dashboard')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📊 รายงาน</button>
 
-<!-- ปิดใช้งานใบกำกับภาษี --><button onclick="showScreen('tax')" class="hidden text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📄 ใบกำกับ</button>
+<button onclick="showScreen('tax')" class="text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">📄 ใบกำกับ</button>
 <button onclick="toggleNotifPanel()" class="relative text-slate-400 hover:text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs">
 🔔<span id="notif-badge-c" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">0</span>
 </button>
@@ -814,7 +814,7 @@ tbody tr:hover{background:rgba(255,255,255,.03)}
 <div class="flex items-center gap-2">
 <button id="bill-edit-btn" onclick="toggleBillEdit()" class="hidden bg-orange-500 hover:bg-orange-400 text-white px-3 py-1.5 rounded-lg text-xs">✏️ แก้ไข</button>
 <button id="bill-save-btn" onclick="saveBillEdit()" class="hidden bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs">💾 บันทึก</button>
-<button onclick="window.print()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs">🖨️ ปริ้น</button>
+<button onclick="doPrintBill()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs">🖨️ ปริ้น</button>
 <button id="bill-print-save-btn" onclick="confirmCreateBill()" class="hidden bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded-lg text-xs font-semibold">✅ ยืนยันสร้างใบส่ง</button>
 <button onclick="closeBillModal()" class="text-slate-500 hover:text-slate-700 text-xl ml-1">✕</button>
 </div>
@@ -1077,13 +1077,13 @@ function goPage(page) {
 }
 function initPage() {
   var page = getQueryParam('page');
-  // ปิดใช้ระบบใบกำกับภาษี: ถ้า ?page=tax → redirect ไป claim
-  if (page === 'tax') page = 'claim';
-  if (page === 'claim' || page === 'track' || page === 'customer') {
+  if (page === 'claim' || page === 'track' || page === 'customer' || page === 'tax') {
     showScreen('customer');
     loadCarriersIntoSelect('cf-carrier');
+    // เริ่มที่ tab ที่ match กับ URL
     var startTab = 'claim';
     if(page === 'track') startTab = 'track';
+    else if(page === 'tax') startTab = 'tax';
     switchTab(startTab, false);
     return;
   }
@@ -3827,6 +3827,27 @@ function closeBillModal(){
   BILL_CURRENT = null;
   BILL_PREVIEW_DATA = null;
   BILL_EDIT_MODE = false;
+}
+
+// ปริ้น — รอ DOM/layout นิ่งก่อน กันปัญหาต้องกด 2-3 รอบ
+var _printing = false;
+function doPrintBill(){
+  if(_printing) return;
+  _printing = true;
+  var modal = el('bill-modal');
+  // ให้แน่ใจว่า modal แสดงอยู่จริง
+  if(modal && modal.classList.contains('hidden')){
+    modal.classList.remove('hidden');
+  }
+  // รอ browser render เสร็จ 2 เฟรม + delay สั้นๆ ให้ layout นิ่ง
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      setTimeout(function(){
+        try { window.print(); }
+        finally { setTimeout(function(){ _printing = false; }, 500); }
+      }, 150);
+    });
+  });
 }
 
 // ── ยืนยันสร้างใบส่ง (จาก preview) ──
